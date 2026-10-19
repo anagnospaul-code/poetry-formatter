@@ -9,7 +9,11 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="lora-fonts.js"></script>
 <style>
 :root{
   --bg:#f7f5f1; --panel:#fff; --fg:#1d1b18; --muted:#6c665d;
@@ -298,7 +302,7 @@ function renderPreview(){
   c.fillRect(frontX,0,2,cv.height);
 
   c.fillStyle=tc; c.textAlign='center';
-  const serif='"Times New Roman",Times,serif';
+  const serif='"Lora","Times New Roman",Times,serif';
 
   const liveW=I(d.tw)-I(edge+safety)-I(hinge);
   let fy=I(d.th*.4);
@@ -356,7 +360,7 @@ function renderEbookPreview(d){
   cv.width=d.coverW; cv.height=d.coverH;
   const c=cv.getContext('2d');
   const bg=$('bgColor').value, tc=$('textColor').value;
-  const serif='"Times New Roman",Times,serif';
+  const serif='"Lora","Times New Roman",Times,serif';
   c.fillStyle=bg; c.fillRect(0,0,cv.width,cv.height);
   if(artImg)drawCover(c,artImg,0,0,cv.width,cv.height);
 
@@ -452,7 +456,7 @@ async function buildEbookJPEG(d){
   cv.width=d.coverW; cv.height=d.coverH;
   const c=cv.getContext('2d');
   const bg=$('bgColor').value, tc=$('textColor').value;
-  const serif='"Times New Roman",Times,serif';
+  const serif='"Lora","Times New Roman",Times,serif';
   c.fillStyle=bg; c.fillRect(0,0,cv.width,cv.height);
   if(artImg)drawCover(c,artImg,0,0,cv.width,cv.height);
   c.fillStyle=tc; c.textAlign='center';
@@ -474,6 +478,7 @@ async function buildEbookJPEG(d){
 async function buildPDF(d){
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({unit:'in',format:[d.coverW,d.coverH],orientation:'landscape',compress:true});
+  if(typeof registerLoraFont==='function')registerLoraFont(doc);
   const bg=$('bgColor').value, tc=$('textColor').value;
   doc.setFillColor(bg); doc.rect(0,0,d.coverW,d.coverH,'F');
   const {edge,safety,hinge}=edgeVals(d);
@@ -489,7 +494,7 @@ async function buildPDF(d){
   }
 
   doc.setTextColor(tc);
-  const serif='times';
+  const serif='lora';
   doc.setFont(serif,'bold'); doc.setFontSize(26);
   let fy=d.th*.38;
   const liveW=d.tw-edge-safety-hinge;
