@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Poetry Book Formatter</title>
+<meta name="description" content="Format poetry manuscripts into KDP-ready print PDFs and EPUBs, and design matching covers.">
+<meta name="theme-color" content="#8a6d3b">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --bg:#f7f5f1; --panel:#fff; --fg:#1d1b18; --muted:#6c665d;
+  --line:#ddd7cd; --accent:#8a6d3b; --accent-soft:#f0e9dc;
+  --ok:#2f6b43; --warn:#9a5b1e; --bad:#9c3028;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#15130f; --panel:#1e1b16; --fg:#ece7dd; --muted:#9b9388;
+  --line:#332e26; --accent:#c8a96e; --accent-soft:#2a2318;
+  --ok:#6ec08a; --warn:#d49a55; --bad:#e0796e; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#15130f; --panel:#1e1b16; --fg:#ece7dd; --muted:#9b9388;
+  --line:#332e26; --accent:#c8a96e; --accent-soft:#2a2318;
+  --ok:#6ec08a; --warn:#d49a55; --bad:#e0796e; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);
+  font:15px/1.6 'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif}
+.appnav{display:flex;gap:2px;background:var(--panel);border-bottom:1px solid var(--line);
+  padding:10px 16px;position:sticky;top:env(safe-area-inset-top,0px);z-index:10}
+.appnav a{font:inherit;font-size:.86rem;letter-spacing:.02em;color:var(--muted);text-decoration:none;
+  padding:8px 14px;border-radius:7px}
+.appnav a.active{background:var(--accent);color:#fff}
+.wrap{max-width:1180px;margin:0 auto;padding-block:26px;padding-left:16px;padding-right:16px}
+h1{font-size:1.5rem;font-weight:400;letter-spacing:.01em;margin:0 0 3px}
+.sub{color:var(--muted);font-size:.92rem;margin-bottom:22px}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+@media(max-width:860px){.cols{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.card h2{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);
+  margin:0 0 11px;font-weight:600}
+label{display:block;font-size:.84rem;color:var(--muted);margin-bottom:4px}
+textarea,select,input[type=text]{width:100%;background:var(--bg);color:var(--fg);
+  border:1px solid var(--line);border-radius:7px;padding:9px 11px;font:inherit;font-size:.92rem}
+textarea{min-height:260px;line-height:1.7;resize:vertical;font-size:.9rem}
+select,input[type=text]{font-size:.9rem}
+.row{display:flex;gap:11px;flex-wrap:wrap}
+.row>*{flex:1;min-width:130px}
+.fld{margin-bottom:12px}
+button{font:inherit;background:var(--accent);color:#fff;border:0;border-radius:7px;
+  padding:11px 18px;cursor:pointer;font-size:.95rem}
+button:hover{filter:brightness(1.08)}
+button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+button:disabled{opacity:.5;cursor:default}
+.btns{display:flex;gap:9px;flex-wrap:wrap;margin-top:4px}
+
+/* the live page preview */
+.stage{background:var(--accent-soft);border:1px solid var(--line);border-radius:10px;
+  padding:20px;display:flex;flex-direction:column;align-items:center;gap:12px}
+.spread{display:flex;gap:10px;justify-content:center;max-width:100%}
+.page{background:#fff;box-shadow:0 3px 14px rgba(0,0,0,.18);position:relative;flex-shrink:0}
+.page canvas{display:block;width:100%;height:auto}
+.pagelabel{font-size:.74rem;color:var(--muted);text-align:center;margin-top:2px}
+.nav{display:flex;gap:9px;align-items:center;justify-content:center;flex-wrap:wrap}
+.nav button{padding:6px 13px;font-size:.86rem}
+.count{font-size:.85rem;color:var(--muted);min-width:120px;text-align:center}
+
+.checks{list-style:none;margin:0;padding:0;font-size:.87rem}
+.checks li{display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+.checks li:last-child{border-bottom:0}
+.checks .k{flex:1;min-width:0}
+.checks .v{font-variant-numeric:tabular-nums;white-space:nowrap}
+.ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+.hint{font-size:.82rem;color:var(--muted);margin-top:7px;line-height:1.5}
+code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.88em}
+.status{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:9px;
+  margin-bottom:18px;font-size:.92rem;line-height:1.5;background:var(--accent-soft);border:1px solid var(--line)}
+.status b{font-weight:600}
+.status .dot{flex:0 0 auto;width:9px;height:9px;border-radius:50%;margin-top:5px;background:var(--accent)}
+.status.good .dot{background:var(--ok)} .status.warn .dot{background:var(--warn)}
+.foundlist{list-style:none;margin:10px 0 0;padding:0;font-size:.85rem;max-height:220px;overflow-y:auto;
+  border:1px solid var(--line);border-radius:7px}
+.foundlist li{padding:7px 10px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center}
+.foundlist li:last-child{border-bottom:0}
+.foundlist .fnum{color:var(--muted);flex:0 0 auto;width:1.6em;text-align:right}
+.foundlist .fauthor{color:var(--muted)}
+.foundlist .ftext{flex:1;min-width:0}
+.foundlist .frm{flex:0 0 auto;background:none;border:0;color:var(--muted);cursor:pointer;
+  font-size:1rem;line-height:1;padding:2px 6px;border-radius:5px}
+.foundlist .frm:hover{background:var(--line);color:var(--bad)}
+.tabs{display:flex;gap:2px;margin-bottom:14px;background:var(--bg);border:1px solid var(--line);
+  border-radius:8px;padding:3px}
+.tab{flex:1;background:transparent;color:var(--muted);border:0;border-radius:6px;padding:8px 10px;
+  font-size:.86rem;cursor:pointer}
+.tab.active{background:var(--accent);color:#fff}
+</style>
+</head>
+<body>
+
+<nav class="appnav">
+  <a href="index.html" class="active">Formatter</a>
+  <a href="cover.html">Cover Creator</a>
+</nav>
+
+<div class="wrap">
+<h1>Poetry Book Formatter</h1>
+<div class="sub">Paste the poems, pick a size, download an interior PDF that meets Amazon KDP's print rules.</div>
+
+<div class="cols">
+  <div>
+    <div class="card">
+      <h2>1 · The poems</h2>
+      <div class="tabs">
+        <button type="button" class="tab active" id="tabOne" onclick="setMode('one')">Add poems one at a time</button>
+        <button type="button" class="tab" id="tabAll" onclick="setMode('all')">Paste a whole document</button>
+      </div>
+
+      <div id="modeOne">
+        <div class="fld"><label>Title of this poem</label><input type="text" id="mTitle" placeholder="e.g. Resurrection"></div>
+        <div class="fld"><label>Author (optional — leave blank if it's just yours)</label><input type="text" id="mAuthor" placeholder="e.g. Mark Loiselle"></div>
+        <div class="fld"><label>Paste this one poem's text (copy it from the Neopoet page or the author's submission)</label>
+          <textarea id="mBody" spellcheck="false" style="min-height:140px"></textarea>
+        </div>
+        <div class="btns">
+          <button onclick="addManualPoem()">Add this poem to the book →</button>
+          <button class="ghost" onclick="loadSample()">Load an example instead</button>
+        </div>
+        <div class="fld" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+          <label>Starting a new section (e.g. "Winners from Contest Entries 2024")? Name it here — it'll get its own divider page wherever you add it.</label>
+          <div class="btns">
+            <input type="text" id="mSection" placeholder="Section heading" style="flex:2;min-width:160px">
+            <button class="ghost" onclick="addManualSection()">Add section heading</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="modeAll" style="display:none">
+        <div class="fld">
+          <label>Copy the poems straight out of Word and paste them below — one after another, title then poem. You don't need to mark anything; the tool looks for where each title starts. (If it gets one wrong, put a line with just <code>---</code> right above that title. To start a new section, put a line like <code>### Section Name</code> above its first poem.)</label>
+          <textarea id="src" spellcheck="false"></textarea>
+        </div>
+        <div class="btns">
+          <button class="ghost" onclick="loadSample()">Load an example</button>
+          <button class="ghost" onclick="document.getElementById('docx').click()">Open a file (.docx, .pdf, .txt)</button>
+          <input type="file" id="docx" accept=".docx,.pdf,.txt" style="display:none" onchange="readFile(this.files[0])">
+        </div>
+        <div class="hint" id="fileNote"></div>
+      </div>
+
+      <div id="statusBox"></div>
+      <ul class="foundlist" id="foundList" style="display:none"></ul>
+    </div>
+
+    <div class="card">
+      <h2>2 · The book</h2>
+      <div class="row">
+        <div class="fld"><label>Title</label><input type="text" id="bTitle" value="Neopoet Around the Globe"></div>
+        <div class="fld"><label>Author or editor</label><input type="text" id="bAuthor" value="Neopoet.com"></div>
+      </div>
+      <div class="row">
+        <div class="fld"><label>Trim size</label><select id="trim"></select></div>
+        <div class="fld"><label>Body type size</label>
+          <select id="fsize">
+            <option value="10">10 pt</option>
+            <option value="10.5">10.5 pt</option>
+            <option value="11" selected>11 pt</option>
+            <option value="12">12 pt</option>
+            <option value="13">13 pt</option>
+          </select></div>
+      </div>
+      <div class="row">
+        <div class="fld"><label>Typeface</label>
+          <select id="face">
+            <option value="times">Times — classic book serif</option>
+            <option value="helvetica">Helvetica — clean sans</option>
+            <option value="courier">Courier — typewriter</option>
+          </select></div>
+        <div class="fld"><label>Copyright year</label><input type="text" id="bYear" value="2023"></div>
+      </div>
+      <div class="row">
+        <div class="fld"><label>ISBN (optional — KDP can assign one free, or use your own)</label><input type="text" id="bISBN" placeholder="e.g. 979-8-xxxxxxx-x-x"></div>
+      </div>
+      <div class="fld"><label>Dedication or acknowledgments (optional — its own page, right after copyright)</label>
+        <textarea id="bDedication" spellcheck="false" style="min-height:70px" placeholder="For everyone who sent us a poem this year."></textarea>
+      </div>
+      <div class="fld"><label>Ornament under each poem's title</label>
+        <select id="ornament">
+          <option value="rule-dot" selected>Short rule &amp; dot ──⬥──</option>
+          <option value="dots">Three dots · · ·</option>
+          <option value="none">None</option>
+        </select></div>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:4px">
+        <input type="checkbox" id="optToc" checked style="width:auto"> Include a contents page
+      </label>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:6px">
+        <input type="checkbox" id="optRight" checked style="width:auto"> Start every poem on a right-hand page
+      </label>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:6px">
+        <input type="checkbox" id="optNums" checked style="width:auto"> Page numbers
+      </label>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:6px">
+        <input type="checkbox" id="optHeaders" checked style="width:auto"> Running headers (book title / poem title at the top of each page)
+      </label>
+    </div>
+
+    <div class="card">
+      <h2>3 · Check against KDP</h2>
+      <ul class="checks" id="checks"></ul>
+      <div class="btns" style="margin-top:13px">
+        <button id="dl" onclick="buildPDF()">Download the interior PDF</button>
+        <button class="ghost" id="dlEpub" onclick="buildEPUB()">Download the EPUB (for Kindle ebook)</button>
+      </div>
+      <div class="hint">Upload the PDF as your print manuscript — it has no bleed, which is right for a text interior; KDP only needs bleed when artwork runs to the edge of the page. The EPUB is a separate file for the Kindle ebook edition: it reflows to the reader's screen, so it ignores trim size, margins, and page numbers and just carries the poems, titles, and front matter.</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="stage">
+      <div class="spread" id="spread"></div>
+      <div class="nav">
+        <button class="ghost" onclick="turn(-2)">‹ Back</button>
+        <span class="count" id="count"></span>
+        <button class="ghost" onclick="turn(2)">Next ›</button>
+      </div>
+      <div class="pagelabel" id="plabel"></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+// ── KDP's published rules ──────────────────────────────────────────────
+// Trim sizes: kdp.amazon.com/help/topic/G201857950
+// Margins:    kdp.amazon.com/help/topic/GVBQ3CMEQW3W2VL6
+const TRIMS=[
+  [5,8],[5.06,7.81],[5.25,8],[5.5,8.5],[6,9],[6.14,9.21],[6.69,9.61],
+  [7,10],[7.44,9.69],[7.5,9.25],[8,10],[8.25,6],[8.25,8.25],[8.5,8.5],[8.5,11],
+];
+const DEFAULT_TRIM='5.5x8.5';
+// Inside (gutter) margin grows with page count, because a thicker book
+// swallows more of the inside edge into the spine.
+function gutterFor(pages){
+  if(pages<=150)return .375;
+  if(pages<=300)return .5;
+  if(pages<=500)return .625;
+  if(pages<=700)return .75;
+  return .875;
+}
+const MIN_OUTER=.25;      // top, bottom, outside — no bleed
+const KDP_MIN_PAGES=24, KDP_MAX_PAGES=828;
+
+// Comfortable margins, never below KDP's floor
+const OUTER=.6, TOPM=.75, BOTM=.7;
+
+const $=id=>document.getElementById(id);
+let BOOK=null, spreadAt=0;
+let inputMode='one', manualPoems=[];
+
+// Hand a generated file to the viewer.
+async function saveFile(filename,blob){
+  try{
+    if(window.claude&&window.claude.use){
+      const downloads=await window.claude.use('downloads');
+      if(downloads){ await downloads.save({filename,data:blob}); return; }
+    }
+  }catch(e){ console.warn('downloads capability unavailable, falling back:',e); }
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=filename;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+function setMode(m){
+  inputMode=m;
+  $('tabOne').classList.toggle('active',m==='one');
+  $('tabAll').classList.toggle('active',m==='all');
+  $('modeOne').style.display=m==='one'?'block':'none';
+  $('modeAll').style.display=m==='all'?'block':'none';
+  renderPreview();
+}
+function addManualPoem(){
+  const title=$('mTitle').value.trim();
+  const body=$('mBody').value;
+  if(!title||!body.trim()){
+    $('statusBox').innerHTML=`<div class="status warn"><span class="dot"></span>`+
+      `<div>Give it a title and paste the poem's text before adding it.</div></div>`;
+    return;
+  }
+  const lines=body.replace(/\r\n?/g,'\n').split('\n');
+  while(lines.length&&!lines[0].trim())lines.shift();
+  while(lines.length&&!lines[lines.length-1].trim())lines.pop();
+  manualPoems.push({kind:'poem',title,author:$('mAuthor').value.trim(),lines});
+  $('mTitle').value='';$('mAuthor').value='';$('mBody').value='';
+  $('mTitle').focus();
+  renderPreview();
+}
+function addManualSection(){
+  const title=$('mSection').value.trim();
+  if(!title){
+    $('statusBox').innerHTML=`<div class="status warn"><span class="dot"></span>`+
+      `<div>Give the section a name first.</div></div>`;
+    return;
+  }
+  manualPoems.push({kind:'section',title});
+  $('mSection').value='';
+  renderPreview();
+}
+function removeManualPoem(i){ manualPoems.splice(i,1); renderPreview(); }
+
+// ── Parsing ────────────────────────────────────────────────────────────
+function parsePoems(raw){
+  return raw.split(/^\s*---+\s*$/m)
+    .map(block=>{
+      const lines=block.replace(/\r/g,'').split('\n');
+      while(lines.length&&!lines[0].trim())lines.shift();
+      while(lines.length&&!lines[lines.length-1].trim())lines.pop();
+      if(!lines.length)return null;
+      const title=lines.shift().trim();
+      while(lines.length&&!lines[0].trim())lines.shift();
+      let author='';
+      if(lines.length){
+        const m=lines[0].trim().match(/^~\s*(.+?)\s*~$/)||lines[0].trim().match(/^by\s+(.+)$/i);
+        if(m){author=m[1].trim();lines.shift();
+          while(lines.length&&!lines[0].trim())lines.shift();}
+      }
+      return {kind:'poem',title,author,lines};
+    })
+    .filter(Boolean);
+}
+
+function splitSections(raw){
+  const text=raw.replace(/\r\n?/g,'\n');
+  const re=/^[ \t]*###[ \t]+(.+?)[ \t]*$/gm;
+  const matches=[...text.matchAll(re)];
+  if(!matches.length)return [{title:null,text}];
+  const parts=[];
+  if(matches[0].index>0)parts.push({title:null,text:text.slice(0,matches[0].index)});
+  matches.forEach((m,i)=>{
+    const start=m.index+m[0].length;
+    const end=i+1<matches.length?matches[i+1].index:text.length;
+    parts.push({title:m[1].trim(),text:text.slice(start,end)});
+  });
+  return parts;
+}
+function parseAllMode(raw){
+  const chunks=splitSections(raw);
+  const entries=[];
+  let totalPoems=0,lastSplit=null;
+  chunks.forEach(ch=>{
+    if(ch.title)entries.push({kind:'section',title:ch.title});
+    if(!ch.text.trim())return;
+    const split=autoSplit(ch.text);
+    lastSplit=split;
+    parsePoems(split.text).forEach(p=>{entries.push(p);totalPoems++;});
+  });
+  const anySections=chunks.some(ch=>ch.title);
+  return {entries,totalPoems,anySections,lastSplit};
+}
+
+function looksLikeTitle(block){
+  if(block.length!==1)return false;
+  const t=block[0].trim();
+  if(!t||t.length>55)return false;
+  if(/^~\s*.+?\s*~$/.test(t))return false;
+  if(/^by\s+.+/i.test(t))return false;
+  if(/[.,;:]$/.test(t))return false;
+  if(!/^[A-Z0-9"“']/.test(t))return false;
+  return true;
+}
+function autoSplit(raw){
+  const text=raw.replace(/\r\n?/g,'\n');
+  if(/^\s*---+\s*$/m.test(text))
+    return {text,method:'manual',count:text.split(/^\s*---+\s*$/m).filter(b=>b.trim()).length};
+
+  if(/\n[ \t]*\n[ \t]*\n/.test(text)){
+    const parts=text.split(/\n[ \t]*\n[ \t]*\n+/).map(s=>s.trim()).filter(Boolean);
+    if(parts.length>1)
+      return {text:parts.join('\n\n---\n\n'),method:'blank-gap',count:parts.length};
+  }
+
+  const blocks=text.split(/\n\s*\n+/).map(b=>b.split('\n')).filter(b=>b.some(l=>l.trim()));
+  const titleAt=blocks.map(looksLikeTitle);
+  const titleCount=titleAt.filter(Boolean).length;
+  if(titleCount<2)
+    return {text,method:'none',count:1,ambiguous:blocks.length>1};
+
+  const out=[];
+  blocks.forEach((b,i)=>{
+    if(titleAt[i]&&i>0)out.push('---','');
+    out.push(b.join('\n'));
+  });
+  return {text:out.join('\n\n'),method:'auto',count:titleCount};
+}
+
+function renderStatusOne(entries){
+  const box=$('statusBox');
+  const poemCount=entries.filter(e=>e.kind==='poem').length;
+  const secCount=entries.filter(e=>e.kind==='section').length;
+  if(!entries.length){
+    box.innerHTML=`<div class="status"><span class="dot"></span><div>Fill in a title and paste that poem's text, then press <b>Add this poem</b>. Repeat for each one — the list builds below as you go.</div></div>`;
+    return;
+  }
+  const secPart=secCount?` across <b>${secCount}</b> section${secCount===1?'':'s'}`:'';
+  box.innerHTML=`<div class="status good"><span class="dot"></span><div>`+
+    `<b>${poemCount}</b> poem${poemCount===1?'':'s'}${secPart} added so far. Add the next one above, `+
+    `or scroll down to set the book options and download once you've added them all.</div></div>`;
+}
+function renderStatusAll(res){
+  if(res.anySections){
+    const box=$('statusBox');
+    const secCount=res.entries.filter(e=>e.kind==='section').length;
+    box.innerHTML=`<div class="status good"><span class="dot"></span><div>`+
+      `Found <b>${res.totalPoems}</b> poem${res.totalPoems===1?'':'s'} across <b>${secCount}</b> section${secCount===1?'':'s'}. `+
+      `Check the list below — if a poem landed in the wrong place, add a line with just <code>---</code> above it, `+
+      `or a <code>### Section Name</code> line above a new group.</div></div>`;
+    return;
+  }
+  renderStatus(res.lastSplit||{method:'none',ambiguous:false},res.totalPoems);
+}
+function renderStatus(split,poemCount){
+  const box=$('statusBox');
+  const raw=$('src').value.trim();
+  if(!raw){
+    box.innerHTML=`<div class="status"><span class="dot"></span><div>Paste your poems above, or <b>load an example</b> to see how it works.</div></div>`;
+    return;
+  }
+  let cls='good',msg;
+  if(split.method==='manual'){
+    msg=`Found <b>${poemCount}</b> poem${poemCount===1?'':'s'} (split on your <code>---</code> lines). Check the list below, then set the book options.`;
+  }else if(split.method==='blank-gap'){
+    msg=`Found <b>${poemCount}</b> poem${poemCount===1?'':'s'} automatically, by treating an extra blank line as the start of a new poem. `+
+        `Check the list below — if one looks wrong, add a line with just <code>---</code> right above where a poem should actually start.`;
+  }else if(split.method==='auto'){
+    msg=`Found <b>${poemCount}</b> poem${poemCount===1?'':'s'} automatically, by looking for a short title line before each one. `+
+        `Check the list below — if a title got missed or a poem got split in two, add a line with just <code>---</code> right above where a poem should start.`;
+  }else if(split.ambiguous){
+    cls='warn';
+    msg=`Couldn't tell where separate poems start, so this is being treated as <b>one</b> poem. `+
+        `Put each title on its own line with a blank line before it, or add a line with just <code>---</code> above each new poem.`;
+  }else{
+    msg=`Treating this as <b>one</b> poem titled "${escapeHtml($('src').value.trim().split('\n')[0]||'')}".`;
+  }
+  box.innerHTML=`<div class="status ${cls}"><span class="dot"></span><div>${msg}</div></div>`;
+}
+function escapeHtml(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+// ── Layout ─────────────────────────────────────────────────────────────
+function layout(){
+  let entries;
+  if(inputMode==='one'){
+    entries=manualPoems;
+    renderStatusOne(entries);
+  }else{
+    const res=parseAllMode($('src').value);
+    entries=res.entries;
+    renderStatusAll(res);
+  }
+  const [tw,th]=$('trim').value.split('x').map(Number);
+  const fs=parseFloat($('fsize').value);
+  const face=$('face').value;
+  const startRight=$('optRight').checked;
+  const wantToc=$('optToc').checked;
+  const ornament=$('ornament').value;
+  const dedication=$('bDedication').value;
+
+  let gutter=gutterFor(KDP_MIN_PAGES), pages=null;
+  for(let pass=0;pass<4;pass++){
+    pages=buildPages(entries,tw,th,fs,gutter,startRight,wantToc,ornament,dedication);
+    const g=gutterFor(Math.max(KDP_MIN_PAGES,pages.length));
+    if(g===gutter)break;
+    gutter=g;
+  }
+  BOOK={poems:entries,tw,th,fs,face,gutter,pages,ornament,isbn:$('bISBN').value.trim(),
+        headers:$('optHeaders').checked,
+        title:$('bTitle').value,author:$('bAuthor').value,year:$('bYear').value,
+        nums:$('optNums').checked};
+  return BOOK;
+}
+function ornamentGap(fs,ornament){ return ornament==='none'?0:fs*0.85/72; }
+const ORNAMENT_RULE=.3, ORNAMENT_GAPIN=.07, ORNAMENT_DOT_R=.045, ORNAMENT_DOTS_R=.028, ORNAMENT_DOTS_SP=.12;
+function drawOrnamentCanvas(c,cx,y,style,I){
+  if(style==='none')return;
+  c.save();c.fillStyle='#777';c.strokeStyle='#777';c.lineWidth=I(.012);
+  if(style==='rule-dot'){
+    const L=I(ORNAMENT_RULE),g=I(ORNAMENT_GAPIN),r=I(ORNAMENT_DOT_R);
+    c.beginPath();c.moveTo(cx-L-g,y);c.lineTo(cx-g,y);c.stroke();
+    c.beginPath();c.moveTo(cx+g,y);c.lineTo(cx+g+L,y);c.stroke();
+    c.beginPath();c.moveTo(cx,y-r);c.lineTo(cx+r,y);c.lineTo(cx,y+r);c.lineTo(cx-r,y);c.closePath();c.fill();
+  }else if(style==='dots'){
+    const r=I(ORNAMENT_DOTS_R),sp=I(ORNAMENT_DOTS_SP);
+    [-sp,0,sp].forEach(dx=>{c.beginPath();c.arc(cx+dx,y,r,0,Math.PI*2);c.fill();});
+  }
+  c.restore();
+}
+function drawOrnamentPDF(doc,cx,y,style){
+  if(style==='none')return;
+  doc.setDrawColor(119);doc.setFillColor(119);doc.setLineWidth(.012);
+  if(style==='rule-dot'){
+    const L=ORNAMENT_RULE,g=ORNAMENT_GAPIN,r=ORNAMENT_DOT_R;
+    doc.line(cx-L-g,y,cx-g,y); doc.line(cx+g,y,cx+g+L,y);
+    doc.lines([[r,-r],[r,r],[-r,r],[-r,-r]],cx-r,y,[1,1],'F',true);
+  }else if(style==='dots'){
+    const r=ORNAMENT_DOTS_R,sp=ORNAMENT_DOTS_SP;
+    [-sp,0,sp].forEach(dx=>doc.circle(cx+dx,y,r,'F'));
+  }
+  doc.setDrawColor(0);doc.setFillColor(0);
+}
+
+function buildPages(entries,tw,th,fs,gutter,startRight,wantToc,ornament,dedication){
+  const lead=fs*1.52/72;
+  const oGap=ornamentGap(fs,ornament);
+  const titleGap=fs*2.4/72+oGap;
+  const titleGapAuthor=fs*(1.9+1.3+.5)/72+oGap;
+  const pages=[];
+  pages.push({kind:'half'});
+  pages.push({kind:'blank'});
+  pages.push({kind:'title'});
+  pages.push({kind:'copyright'});
+  if(dedication&&dedication.trim()){
+    pages.push({kind:'dedication',text:dedication});
+    pages.push({kind:'blank'});
+  }
+  if(wantToc){pages.push({kind:'toc',entries:[]});pages.push({kind:'blank'});}
+
+  let pi=0;
+  entries.forEach(entry=>{
+    if(entry.kind==='section'){
+      if(startRight&&pages.length%2===1)pages.push({kind:'blank'});
+      pages.push({kind:'sectiontitle',title:entry.title});
+      return;
+    }
+    const p=entry;
+    if(startRight&&pages.length%2===1)pages.push({kind:'blank'});
+    const colW=tw-gutter-OUTER;
+    const colH=th-TOPM-BOTM;
+    const flowed=[];
+    p.lines.forEach(ln=>{
+      if(!ln.trim()){flowed.push('');return;}
+      const parts=wrapLine(ln,colW,fs);
+      parts.forEach((s,k)=>flowed.push(k?'  '+s:s));
+    });
+    let idx=0,first=true;
+    while(idx<flowed.length||first){
+      const avail=colH-(first?(p.author?titleGapAuthor:titleGap):0);
+      const room=Math.max(1,Math.floor(avail/lead));
+      let take=Math.min(room,flowed.length-idx);
+      if(flowed.length-idx-take===1&&take>2)take-=1;
+      const slice=flowed.slice(idx,idx+take);
+      pages.push({kind:'poem',title:first?p.title:p.title+' (cont.)',author:p.author,
+                  showTitle:first,lines:slice,poemIndex:pi,ornament:first?ornament:'none'});
+      idx+=take;first=false;
+      if(take<=0)break;
+    }
+    pi++;
+  });
+  while(pages.length<KDP_MIN_PAGES)pages.push({kind:'blank'});
+  if(pages.length%2)pages.push({kind:'blank'});
+
+  if(wantToc){
+    const toc=pages.find(p=>p.kind==='toc');
+    if(toc){
+      toc.entries=[];
+      pages.forEach((pg,i)=>{
+        if(pg.kind==='sectiontitle')
+          toc.entries.push({kind:'section',title:pg.title,page:i+1});
+        else if(pg.kind==='poem'&&pg.showTitle)
+          toc.entries.push({kind:'poem',title:pg.title,author:pg.author,page:i+1});
+      });
+    }
+  }
+  return pages;
+}
+
+function wrapLine(text,colW,fs){
+  const perChar=fs*.5/72;
+  const max=Math.max(8,Math.floor(colW/perChar));
+  if(text.length<=max)return [text];
+  const out=[];let cur='';
+  text.split(/\s+/).forEach(w=>{
+    if((cur+' '+w).trim().length>max&&cur){out.push(cur);cur=w;}
+    else cur=(cur?cur+' ':'')+w;
+  });
+  if(cur)out.push(cur);
+  return out;
+}
+
+// ── Preview ────────────────────────────────────────────────────────────
+function drawPage(cv,page,idx,b){
+  const DPI=110;
+  cv.width=Math.round(b.tw*DPI);cv.height=Math.round(b.th*DPI);
+  const c=cv.getContext('2d');
+  const I=v=>v*DPI;
+  c.fillStyle='#fff';c.fillRect(0,0,cv.width,cv.height);
+  const right=(idx+1)%2===1;
+  const inner=right?b.gutter:OUTER;
+  const left=I(inner), colW=I(b.tw-b.gutter-OUTER);
+  c.fillStyle='#111';
+  const fam=b.face==='helvetica'?'Helvetica,Arial,sans-serif'
+           :b.face==='courier'?'"Courier New",monospace'
+           :'"Times New Roman",Times,serif';
+  const lead=I(b.fs*1.52/72);
+
+  if(page.kind==='blank'){}
+  else if(page.kind==='half'||page.kind==='title'){
+    c.textAlign='center';
+    c.font=`${page.kind==='title'?I(b.fs*2.1/72):I(b.fs*1.5/72)}px ${fam}`;
+    c.fillText(b.title,cv.width/2,I(b.th*.34));
+    if(page.kind==='title'){
+      c.font=`${I(b.fs*1.05/72)}px ${fam}`;
+      c.fillStyle='#444';
+      c.fillText(b.author,cv.width/2,I(b.th*.44));
+    }
+    c.textAlign='left';
+  }
+  else if(page.kind==='copyright'){
+    c.font=`${I(b.fs*.86/72)}px ${fam}`;c.fillStyle='#333';
+    const txt=[`Copyright © ${b.year} by ${b.author}`,'',
+      'Rights to individual poems reside with the artists themselves.','',
+      'All rights reserved. No part of this book may be reproduced,',
+      'stored in a retrieval system or transmitted in any form without',
+      'written permission of the publisher.'];
+    if(b.isbn)txt.push('',`ISBN: ${b.isbn}`);
+    txt.forEach((t,i)=>c.fillText(t,left,I(b.th*.62)+i*lead*.92));
+  }
+  else if(page.kind==='dedication'){
+    c.textAlign='center';c.font=`italic ${I(b.fs*1.05/72)}px ${fam}`;c.fillStyle='#333';
+    let y=I(b.th*.42);
+    (page.text||'').split('\n').forEach(t=>{c.fillText(t,cv.width/2,y);y+=lead;});
+    c.textAlign='left';c.fillStyle='#111';
+  }
+  else if(page.kind==='sectiontitle'){
+    c.textAlign='center';c.font=`${I(b.fs*1.7/72)}px ${fam}`;
+    c.fillText(page.title,cv.width/2,I(b.th*.46));
+    if(b.ornament!=='none'){
+      const g=I(ornamentGap(b.fs,b.ornament));
+      drawOrnamentCanvas(c,cv.width/2,I(b.th*.46)+I(b.fs*.5/72)+g/2,b.ornament,I);
+    }
+    c.textAlign='left';
+  }
+  else if(page.kind==='toc'){
+    c.textAlign='center';c.font=`${I(b.fs*1.5/72)}px ${fam}`;
+    c.fillText('Contents',cv.width/2,I(TOPM)+lead*1.4);
+    c.textAlign='left';
+    (page.entries||[]).slice(0,34).forEach((e,i)=>{
+      const y=I(TOPM)+lead*3.4+i*lead;
+      if(e.kind==='section'){
+        c.font=`bold ${I(b.fs*1.02/72)}px ${fam}`;
+        c.fillText(e.title.slice(0,50),left,y);
+      }else{
+        c.font=`${I(b.fs/72)}px ${fam}`;
+        const label='   '+e.title.slice(0,44)+(e.author?' — '+e.author:'');
+        c.fillText(label.slice(0,52),left,y);
+      }
+      c.textAlign='right';c.fillText(String(e.page),left+colW,y);c.textAlign='left';
+    });
+  }
+  else if(page.kind==='poem'){
+    let y=I(TOPM)+lead;
+    if(page.showTitle){
+      c.font=`${I(b.fs*1.32/72)}px ${fam}`;
+      c.fillText(page.title,left,y);
+      y+=I(b.fs*1.9/72);
+      if(page.author){
+        c.font=`${I(b.fs*.92/72)}px ${fam}`;c.fillStyle='#555';
+        c.fillText(page.author,left,y);c.fillStyle='#111';
+        y+=I(b.fs*1.3/72);
+      }
+      if(page.ornament&&page.ornament!=='none'){
+        const g=I(ornamentGap(b.fs,page.ornament));
+        drawOrnamentCanvas(c,left+colW/2,y+g/2,page.ornament,I);
+        y+=g;
+      }
+      y+=I(b.fs*.5/72);
+    }
+    c.font=`${I(b.fs/72)}px ${fam}`;
+    page.lines.forEach(ln=>{c.fillText(ln,left,y);y+=lead;});
+  }
+  if(b.headers&&page.kind==='poem'){
+    c.font=`italic ${I(b.fs*.72/72)}px ${fam}`;c.fillStyle='#888';
+    const htext=right?(page.title||'').replace(' (cont.)',''):b.title;
+    c.textAlign=right?'right':'left';
+    c.fillText(htext.slice(0,60),right?left+colW:left,I(TOPM*.52));
+    c.textAlign='left';c.fillStyle='#111';
+  }
+  if(b.nums&&!['half','title','copyright','dedication','blank'].includes(page.kind)){
+    c.font=`${I(b.fs*.82/72)}px ${fam}`;c.fillStyle='#555';c.textAlign='center';
+    c.fillText(String(idx+1),cv.width/2,cv.height-I(BOTM*.5));
+    c.textAlign='left';
+  }
+}
+
+function renderPreview(){
+  const b=layout();
+  const host=$('spread');host.innerHTML='';
+  const total=b.pages.length;
+  if(spreadAt>=total)spreadAt=Math.max(0,total-2);
+  if(spreadAt<0)spreadAt=0;
+  const scale=Math.min(1,330/(b.th*110));
+  [spreadAt,spreadAt+1].forEach(i=>{
+    if(i>=total)return;
+    const d=document.createElement('div');d.className='page';
+    d.style.width=Math.round(b.tw*110*scale)+'px';
+    const cv=document.createElement('canvas');
+    drawPage(cv,b.pages[i],i,b);
+    d.appendChild(cv);host.appendChild(d);
+  });
+  $('count').textContent=`pages ${spreadAt+1}–${Math.min(spreadAt+2,total)} of ${total}`;
+  $('plabel').textContent=`${b.tw}″ × ${b.th}″ · gutter ${b.gutter}″ · outside ${OUTER}″`;
+  renderChecks(b);
+  renderFoundList(b.poems);
+}
+function renderFoundList(entries){
+  const list=$('foundList');
+  if(!entries.length){list.style.display='none';list.innerHTML='';return;}
+  list.style.display='block';
+  let n=0;
+  list.innerHTML=entries.map((e,i)=>{
+    const rm=inputMode==='one'?`<button class="frm" title="Remove" onclick="removeManualPoem(${i})">✕</button>`:'';
+    if(e.kind==='section')
+      return `<li style="font-weight:600;background:var(--accent-soft)">`+
+        `<span class="ftext">§ ${escapeHtml(e.title)}</span>${rm}</li>`;
+    n++;
+    return `<li><span class="fnum">${n}.</span><span class="ftext">${escapeHtml(e.title)}`+
+      (e.author?` <span class="fauthor">— ${escapeHtml(e.author)}</span>`:'')+
+      `</span>${rm}</li>`;
+  }).join('');
+}
+function turn(d){spreadAt=Math.max(0,spreadAt+d);renderPreview();}
+
+function renderChecks(b){
+  const pages=b.pages.length;
+  const rows=[];
+  const add=(k,v,cls)=>rows.push(`<li><span class="k">${k}</span><span class="v ${cls}">${v}</span></li>`);
+  add('Trim size',`${b.tw}″ × ${b.th}″`,'ok');
+  add('Page count',`${pages}`,
+      pages<KDP_MIN_PAGES?'bad':pages>KDP_MAX_PAGES?'bad':'ok');
+  if(pages<KDP_MIN_PAGES)add('&nbsp;↳ KDP minimum is 24','padded to 24','warn');
+  if(pages>KDP_MAX_PAGES)add('&nbsp;↳ KDP maximum is 828','too long','bad');
+  add('Even page count',pages%2===0?'yes':'no',pages%2===0?'ok':'bad');
+  add(`Inside margin (for ${pages} pages)`,`${b.gutter}″ — required ${gutterFor(pages)}″`,
+      b.gutter>=gutterFor(pages)?'ok':'bad');
+  add('Outside margin',`${OUTER}″ — minimum ${MIN_OUTER}″`,OUTER>=MIN_OUTER?'ok':'bad');
+  add('Top margin',`${TOPM}″ — minimum ${MIN_OUTER}″`,TOPM>=MIN_OUTER?'ok':'bad');
+  add('Bottom margin',`${BOTM}″ — minimum ${MIN_OUTER}″`,BOTM>=MIN_OUTER?'ok':'bad');
+  add('Bleed','none — correct for a text interior','ok');
+  const longest=longestLineInches(b);
+  add('Longest poem line',`${longest.toFixed(2)}″ in a ${(b.tw-b.gutter-OUTER).toFixed(2)}″ measure`,
+      longest<=b.tw-b.gutter-OUTER?'ok':'warn');
+  $('checks').innerHTML=rows.join('');
+}
+function longestLineInches(b){
+  const cv=document.createElement('canvas');const c=cv.getContext('2d');
+  const fam=b.face==='helvetica'?'Helvetica,Arial,sans-serif'
+           :b.face==='courier'?'"Courier New",monospace':'"Times New Roman",Times,serif';
+  c.font=`${b.fs}px ${fam}`;
+  let mx=0;
+  b.pages.forEach(p=>{if(p.kind==='poem')p.lines.forEach(l=>{
+    const w=c.measureText(l).width/72;if(w>mx)mx=w;});});
+  return mx;
+}
+
+// ── The PDF ────────────────────────────────────────────────────────────
+async function buildPDF(){
+  const b=layout();
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'in',format:[b.tw,b.th],orientation:
+    b.tw>b.th?'landscape':'portrait',compress:true});
+  const lead=b.fs*1.52/72;
+  const fontName=b.face;
+  b.pages.forEach((page,idx)=>{
+    if(idx)doc.addPage([b.tw,b.th],b.tw>b.th?'landscape':'portrait');
+    const right=(idx+1)%2===1;
+    const left=right?b.gutter:OUTER;
+    const colW=b.tw-b.gutter-OUTER;
+    doc.setTextColor(17,17,17);
+
+    if(page.kind==='blank'){}
+    else if(page.kind==='half'||page.kind==='title'){
+      doc.setFont(fontName,'normal');
+      doc.setFontSize(page.kind==='title'?b.fs*2.1:b.fs*1.5);
+      doc.text(b.title,b.tw/2,b.th*.34,{align:'center',maxWidth:colW});
+      if(page.kind==='title'){
+        doc.setFontSize(b.fs*1.05);doc.setTextColor(68,68,68);
+        doc.text(b.author,b.tw/2,b.th*.44,{align:'center'});
+      }
+    }
+    else if(page.kind==='copyright'){
+      doc.setFont(fontName,'normal');doc.setFontSize(b.fs*.86);
+      doc.setTextColor(51,51,51);
+      const txt=[`Copyright © ${b.year} by ${b.author}`,'',
+        'Rights to individual poems reside with the artists themselves.','',
+        'All rights reserved. No part of this book may be reproduced, stored in a '+
+        'retrieval system or transmitted in any form, electronic, mechanical, or by '+
+        'other means, without written permission of the publisher.'];
+      if(b.isbn)txt.push('',`ISBN: ${b.isbn}`);
+      let y=b.th*.62;
+      txt.forEach(t=>{
+        if(!t){y+=lead*.9;return;}
+        const wrapped=doc.splitTextToSize(t,colW);
+        doc.text(wrapped,left,y);y+=wrapped.length*lead*.92;
+      });
+    }
+    else if(page.kind==='dedication'){
+      doc.setFont(fontName,'italic');doc.setFontSize(b.fs*1.05);
+      doc.setTextColor(51,51,51);
+      let y=b.th*.42;
+      (page.text||'').split('\n').forEach(t=>{
+        if(t.trim())doc.text(t,b.tw/2,y,{align:'center',maxWidth:colW});
+        y+=lead;
+      });
+      doc.setTextColor(17,17,17);
+    }
+    else if(page.kind==='sectiontitle'){
+      doc.setFont(fontName,'normal');doc.setFontSize(b.fs*1.7);
+      doc.text(page.title,b.tw/2,b.th*.46,{align:'center',maxWidth:colW});
+      if(b.ornament!=='none'){
+        const g=ornamentGap(b.fs,b.ornament);
+        drawOrnamentPDF(doc,b.tw/2,b.th*.46+b.fs*.5/72+g/2,b.ornament);
+      }
+    }
+    else if(page.kind==='toc'){
+      doc.setFont(fontName,'normal');doc.setFontSize(b.fs*1.5);
+      doc.text('Contents',b.tw/2,TOPM+lead*1.4,{align:'center'});
+      (page.entries||[]).forEach((e,i)=>{
+        const y=TOPM+lead*3.4+i*lead;
+        if(y>b.th-BOTM)return;
+        if(e.kind==='section'){
+          doc.setFont(fontName,'bold');doc.setFontSize(b.fs*1.02);
+          doc.text(e.title,left,y,{maxWidth:colW-0.5});
+        }else{
+          doc.setFont(fontName,'normal');doc.setFontSize(b.fs);
+          const label='   '+e.title+(e.author?' — '+e.author:'');
+          doc.text(label,left,y,{maxWidth:colW-0.5});
+        }
+        doc.text(String(e.page),left+colW,y,{align:'right'});
+      });
+    }
+    else if(page.kind==='poem'){
+      let y=TOPM+lead;
+      if(page.showTitle){
+        doc.setFont(fontName,'bold');doc.setFontSize(b.fs*1.32);
+        doc.text(page.title,left,y,{maxWidth:colW});
+        y+=b.fs*1.9/72;
+        if(page.author){
+          doc.setFont(fontName,'normal');doc.setFontSize(b.fs*.92);
+          doc.setTextColor(85,85,85);
+          doc.text(page.author,left,y,{maxWidth:colW});
+          doc.setTextColor(17,17,17);
+          y+=b.fs*1.3/72;
+        }
+        if(page.ornament&&page.ornament!=='none'){
+          const g=ornamentGap(b.fs,page.ornament);
+          drawOrnamentPDF(doc,left+colW/2,y+g/2,page.ornament);
+          y+=g;
+        }
+        y+=b.fs*.5/72;
+      }
+      doc.setFont(fontName,'normal');doc.setFontSize(b.fs);
+      page.lines.forEach(ln=>{
+        if(ln.trim())doc.text(ln,left,y,{maxWidth:colW});
+        y+=lead;
+      });
+    }
+    if(b.headers&&page.kind==='poem'){
+      doc.setFont(fontName,'italic');doc.setFontSize(b.fs*.72);
+      doc.setTextColor(136,136,136);
+      const htext=right?(page.title||'').replace(' (cont.)',''):b.title;
+      doc.text(htext,right?left+colW:left,TOPM*.52,{align:right?'right':'left',maxWidth:colW});
+      doc.setTextColor(17,17,17);
+    }
+    if(b.nums&&!['half','title','copyright','dedication','blank'].includes(page.kind)){
+      doc.setFont(fontName,'normal');doc.setFontSize(b.fs*.82);
+      doc.setTextColor(85,85,85);
+      doc.text(String(idx+1),b.tw/2,b.th-BOTM*.5,{align:'center'});
+    }
+  });
+  const safe=(b.title||'book').replace(/[^\w\s-]/g,'').trim().replace(/\s+/g,'-').toLowerCase();
+  await saveFile(`${safe}-interior-${b.tw}x${b.th}.pdf`,doc.output('blob'));
+}
+
+// ── The EPUB ───────────────────────────────────────────────────────────
+let _jszipReady=null;
+function loadJSZip(){
+  if(_jszipReady)return _jszipReady;
+  _jszipReady=new Promise((resolve,reject)=>{
+    if(window.JSZip)return resolve(window.JSZip);
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    s.onload=()=>resolve(window.JSZip);
+    s.onerror=()=>reject(new Error('could not load the EPUB packager'));
+    document.head.appendChild(s);
+  });
+  return _jszipReady;
+}
+function escapeXml(s){
+  return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+}
+const EPUB_ORNAMENT={'rule-dot':'──✦──','dots':'· · ·','none':''};
+async function buildEPUB(){
+  const b=BOOK||layout();
+  const entries=b.poems||[];
+  if(!entries.filter(e=>e.kind==='poem').length){
+    $('statusBox').innerHTML=`<div class="status warn"><span class="dot"></span>`+
+      `<div>Add at least one poem before building the ebook file.</div></div>`;
+    return;
+  }
+  let JSZip;
+  try{ JSZip=await loadJSZip(); }
+  catch(e){
+    $('statusBox').innerHTML=`<div class="status warn"><span class="dot"></span>`+
+      `<div>Could not load the EPUB packager — check your connection and try again.</div></div>`;
+    return;
+  }
+  const dedication=(b.pages.find(p=>p.kind==='dedication')||{}).text||'';
+  const css=`body{font-family:Georgia,"Times New Roman",serif;line-height:1.5;margin:0 5%}
+h1,h2{text-align:center;font-weight:normal}
+.poem-title{font-size:1.3em;margin-bottom:.1em}
+.byline{text-align:center;font-style:italic;color:#444;margin-top:0}
+.ornament{text-align:center;color:#777;margin:.4em 0 1em}
+.poem{white-space:pre-wrap;margin-top:1em}
+.dedication{text-align:center;font-style:italic;margin-top:40%}
+nav ol{list-style:none;padding-left:0}
+nav li.section{font-weight:bold;margin-top:.8em}
+nav li.poem{margin-left:1.4em}`;
+  const xhtmlHead=title=>`<?xml version="1.0" encoding="UTF-8"?>\n`+
+    `<html xmlns="http://www.w3.org/1999/xhtml"><head><meta charset="utf-8"/>`+
+    `<title>${escapeXml(title)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body>`;
+
+  const manifest=[], spine=[], navItems=[], ncxPoints=[];
+  let playOrder=1;
+  const zipFiles={};
+  const addItem=(id,href,mediaType,xhtml,inSpine,navLabel,navClass)=>{
+    manifest.push(`<item id="${id}" href="${href}" media-type="${mediaType}"${id==='nav'?' properties="nav"':''}/>`);
+    if(xhtml!==null)zipFiles[href]=xhtml;
+    if(inSpine)spine.push(`<itemref idref="${id}"/>`);
+    if(navLabel!==undefined){
+      navItems.push(`<li class="${navClass}"><a href="${href}">${escapeXml(navLabel)}</a></li>`);
+      ncxPoints.push(`<navPoint id="np-${id}" playOrder="${playOrder++}"><navLabel><text>${escapeXml(navLabel)}</text></navLabel><content src="${href}"/></navPoint>`);
+    }
+  };
+
+  addItem('css','style.css','text/css',css,false);
+  addItem('title','title.xhtml','application/xhtml+xml',
+    xhtmlHead(b.title)+`<h1>${escapeXml(b.title)}</h1><p style="text-align:center">${escapeXml(b.author)}</p></body></html>`,
+    true,b.title,'section');
+  let copyTxt=`Copyright &#169; ${escapeXml(b.year)} by ${escapeXml(b.author)}<br/><br/>`+
+    `Rights to individual poems reside with the artists themselves.<br/><br/>`+
+    `All rights reserved. No part of this book may be reproduced, stored in a retrieval system `+
+    `or transmitted in any form without written permission of the publisher.`;
+  if(b.isbn)copyTxt+=`<br/><br/>ISBN: ${escapeXml(b.isbn)}`;
+  addItem('copyright','copyright.xhtml','application/xhtml+xml',
+    xhtmlHead('Copyright')+`<p>${copyTxt}</p></body></html>`,true);
+  if(dedication.trim()){
+    addItem('dedication','dedication.xhtml','application/xhtml+xml',
+      xhtmlHead('Dedication')+`<div class="dedication">`+
+      dedication.split('\n').map(t=>`<p>${escapeXml(t)}</p>`).join('')+`</div></body></html>`,true);
+  }
+  const navHref='toc.xhtml';
+  manifest.push(`<item id="nav" href="${navHref}" media-type="application/xhtml+xml" properties="nav"/>`);
+  spine.push(`<itemref idref="nav"/>`);
+
+  let n=0;
+  entries.forEach(entry=>{
+    if(entry.kind==='section'){
+      const href=`sec_${String(++n).padStart(4,'0')}.xhtml`;
+      addItem(`item-${n}`,href,'application/xhtml+xml',
+        xhtmlHead(entry.title)+`<h1>${escapeXml(entry.title)}</h1></body></html>`,
+        true,entry.title,'section');
+      return;
+    }
+    const href=`poem_${String(++n).padStart(4,'0')}.xhtml`;
+    const orn=EPUB_ORNAMENT[b.ornament]||'';
+    const body=`<h2 class="poem-title">${escapeXml(entry.title)}</h2>`+
+      (entry.author?`<p class="byline">${escapeXml(entry.author)}</p>`:'')+
+      (orn?`<p class="ornament">${orn}</p>`:'')+
+      `<div class="poem">${escapeXml(entry.lines.join('\n'))}</div>`;
+    addItem(`item-${n}`,href,'application/xhtml+xml',xhtmlHead(entry.title)+body+'</body></html>',
+      true,entry.title,'poem');
+  });
+
+  zipFiles[navHref]=`<?xml version="1.0" encoding="UTF-8"?>\n`+
+    `<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">`+
+    `<head><meta charset="utf-8"/><title>Contents</title><link rel="stylesheet" type="text/css" href="style.css"/></head>`+
+    `<body><nav epub:type="toc" id="toc"><h1>Contents</h1><ol>${navItems.join('')}</ol></nav></body></html>`;
+
+  const uid=b.isbn?`urn:isbn:${b.isbn}`:`urn:uuid:${'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{
+    const r=Math.random()*16|0; return (c==='x'?r:(r&3|8)).toString(16);
+  })}`;
+  const opf=`<?xml version="1.0" encoding="UTF-8"?>\n`+
+    `<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="BookId">`+
+    `<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">`+
+    `<dc:identifier id="BookId">${escapeXml(uid)}</dc:identifier>`+
+    `<dc:title>${escapeXml(b.title)}</dc:title>`+
+    `<dc:creator>${escapeXml(b.author)}</dc:creator>`+
+    `<dc:language>en</dc:language>`+
+    `<dc:date>${escapeXml(b.year)}</dc:date>`+
+    `<meta property="dcterms:modified">${new Date().toISOString().replace(/\.\d+Z$/,'Z')}</meta>`+
+    `</metadata><manifest>${manifest.join('')}<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/></manifest>`+
+    `<spine toc="ncx">${spine.join('')}</spine></package>`;
+  const ncx=`<?xml version="1.0" encoding="UTF-8"?>\n`+
+    `<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">`+
+    `<head><meta name="dtb:uid" content="${escapeXml(uid)}"/></head>`+
+    `<docTitle><text>${escapeXml(b.title)}</text></docTitle>`+
+    `<navMap>${ncxPoints.join('')}</navMap></ncx>`;
+
+  const zip=new JSZip();
+  zip.file('mimetype','application/epub+zip',{compression:'STORE'});
+  zip.folder('META-INF').file('container.xml',
+    `<?xml version="1.0" encoding="UTF-8"?>\n<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">`+
+    `<rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`);
+  const oebps=zip.folder('OEBPS');
+  oebps.file('content.opf',opf);
+  oebps.file('toc.ncx',ncx);
+  Object.entries(zipFiles).forEach(([path,content])=>oebps.file(path,content));
+
+  const blob=await zip.generateAsync({type:'blob',mimeType:'application/epub+zip'});
+  const safe=(b.title||'book').replace(/[^\w\s-]/g,'').trim().replace(/\s+/g,'-').toLowerCase();
+  await saveFile(`${safe}.epub`,blob);
+}
+
+// ── Input ──────────────────────────────────────────────────────────────
+let _pdfjsReady=null;
+function loadPdfJs(){
+  if(_pdfjsReady)return _pdfjsReady;
+  _pdfjsReady=new Promise((resolve,reject)=>{
+    if(window.pdfjsLib)return resolve(window.pdfjsLib);
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js';
+    s.onload=()=>{
+      try{
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc=
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+        resolve(window.pdfjsLib);
+      }catch(e){reject(e);}
+    };
+    s.onerror=()=>reject(new Error('could not load the PDF reader'));
+    document.head.appendChild(s);
+  });
+  return _pdfjsReady;
+}
+async function pdfPageLines(page){
+  const content=await page.getTextContent();
+  const rows=new Map();
+  content.items.forEach(it=>{
+    const x=it.transform[4], y=Math.round(it.transform[5]*2)/2;
+    if(!rows.has(y))rows.set(y,[]);
+    rows.get(y).push({x,str:it.str});
+  });
+  return [...rows.entries()]
+    .sort((a,b)=>b[0]-a[0])
+    .map(([,items])=>items.sort((a,b)=>a.x-b.x).map(i=>i.str).join('').trimEnd());
+}
+async function readPdf(f){
+  const pdfjsLib=await loadPdfJs();
+  const buf=await f.arrayBuffer();
+  const doc=await pdfjsLib.getDocument({data:buf}).promise;
+  const out=[];
+  for(let n=1;n<=doc.numPages;n++){
+    const lines=await pdfPageLines(await doc.getPage(n));
+    const nonBlank=lines.filter(l=>l.trim());
+    const looksLikeTitle=nonBlank.length>=2&&nonBlank[0].trim().length<=60&&
+      /^~\s*.+?\s*~$/.test(nonBlank[1].trim());
+    if(looksLikeTitle&&out.length)out.push('---','');
+    lines.forEach(l=>out.push(l));
+    out.push('');
+  }
+  return out.join('\n');
+}
+async function readFile(f){
+  if(!f)return;
+  if(f.name.toLowerCase().endsWith('.txt')){
+    $('src').value=await f.text();renderPreview();return;
+  }
+  if(f.name.toLowerCase().endsWith('.pdf')){
+    try{
+      $('fileNote').textContent='Reading the PDF…';
+      $('src').value=await readPdf(f);
+      renderPreview();
+      $('fileNote').textContent+=' Check the result — title pages, a contents '+
+        'page or any page the tool didn’t recognize as a poem may need a '+
+        'manual --- or some cleanup.';
+    }catch(e){
+      $('fileNote').textContent='Could not read that PDF ('+(e&&e.message||e)+
+        ') — try saving it as plain text, or paste the poems in directly.';
+    }
+    return;
+  }
+  try{
+    const buf=new Uint8Array(await f.arrayBuffer());
+    const xml=await unzipEntry(buf,'word/document.xml');
+    if(!xml)throw new Error('no document.xml');
+    const paras=xml.split(/<w:p[ >]/).slice(1).map(p=>{
+      const runs=[...p.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)].map(m=>m[1]).join('');
+      return runs.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+                 .replace(/&quot;/g,'"').replace(/&#39;/g,"'");
+    });
+    $('src').value=paras.join('\n');
+    renderPreview();
+    $('fileNote').textContent=`Read ${paras.length} lines from ${f.name}.`;
+  }catch(e){
+    $('fileNote').textContent='Could not read that .docx — save it as plain text and try again.';
+  }
+}
+async function unzipEntry(bytes,wanted){
+  const dv=new DataView(bytes.buffer);
+  for(let i=0;i<bytes.length-4;i++){
+    if(dv.getUint32(i,true)!==0x04034b50)continue;
+    const method=dv.getUint16(i+8,true);
+    const compSize=dv.getUint32(i+18,true);
+    const nameLen=dv.getUint16(i+26,true);
+    const extraLen=dv.getUint16(i+28,true);
+    const name=new TextDecoder().decode(bytes.subarray(i+30,i+30+nameLen));
+    const start=i+30+nameLen+extraLen;
+    if(name!==wanted)continue;
+    const data=bytes.subarray(start,start+compSize);
+    if(method===0)return new TextDecoder().decode(data);
+    const ds=new DecompressionStream('deflate-raw');
+    const out=new Response(new Blob([data]).stream().pipeThrough(ds));
+    return await out.text();
+  }
+  return null;
+}
+
+function loadSample(){
+  setMode('all');
+  $('src').value=`Secret Meetings
+
+We met in a back alley
+where the rain came down
+and nobody knew our names.
+
+Whispering after everyone slept,
+our own small country.
+
+---
+
+Winter Light
+
+Bare trees. Grey sky.
+The year gives up its hold
+one afternoon at a time.
+
+I surrender it, far from here.
+
+---
+
+The Pier
+
+Out at the end of the boards
+the water keeps its own counsel,
+answering nothing,
+taking everything in.`;
+  spreadAt=0;renderPreview();
+}
+
+function fillTrims(){
+  const sel=$('trim');
+  sel.innerHTML=TRIMS.map(([w,h])=>{
+    const v=`${w}x${h}`;
+    const note=v==='6x9'?' — most common':v==='5.5x8.5'?' — common for poetry':'';
+    return `<option value="${v}"${v===DEFAULT_TRIM?' selected':''}>${w}″ × ${h}″${note}</option>`;
+  }).join('');
+}
+
+fillTrims();
+['src','trim','fsize','face','bTitle','bAuthor','bYear','optToc','optRight','optNums','ornament',
+ 'bISBN','bDedication','optHeaders']
+  .forEach(id=>{
+    const el=$(id);
+    el.addEventListener(el.type==='checkbox'?'change':'input',()=>renderPreview());
+  });
+renderPreview();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});
+}
+</script>
+</body>
+</html>

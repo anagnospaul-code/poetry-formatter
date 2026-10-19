@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Book Cover Builder</title>
+<meta name="description" content="Design full-wrap paperback, hardcover, or ebook covers sized to KDP's own rules.">
+<meta name="theme-color" content="#8a6d3b">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --bg:#f7f5f1; --panel:#fff; --fg:#1d1b18; --muted:#6c665d;
+  --line:#ddd7cd; --accent:#8a6d3b; --accent-soft:#f0e9dc;
+  --ok:#2f6b43; --warn:#9a5b1e; --bad:#9c3028;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#15130f; --panel:#1e1b16; --fg:#ece7dd; --muted:#9b9388;
+  --line:#332e26; --accent:#c8a96e; --accent-soft:#2a2318;
+  --ok:#6ec08a; --warn:#d49a55; --bad:#e0796e; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#15130f; --panel:#1e1b16; --fg:#ece7dd; --muted:#9b9388;
+  --line:#332e26; --accent:#c8a96e; --accent-soft:#2a2318;
+  --ok:#6ec08a; --warn:#d49a55; --bad:#e0796e; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);
+  font:15px/1.6 'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif}
+.appnav{display:flex;gap:2px;background:var(--panel);border-bottom:1px solid var(--line);
+  padding:10px 16px;position:sticky;top:env(safe-area-inset-top,0px);z-index:10}
+.appnav a{font:inherit;font-size:.86rem;letter-spacing:.02em;color:var(--muted);text-decoration:none;
+  padding:8px 14px;border-radius:7px}
+.appnav a.active{background:var(--accent);color:#fff}
+.wrap{max-width:1180px;margin:0 auto;padding-block:26px;padding-left:16px;padding-right:16px}
+h1{font-size:1.5rem;font-weight:400;letter-spacing:.01em;margin:0 0 3px}
+.sub{color:var(--muted);font-size:.92rem;margin-bottom:22px}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:20px;align-items:start}
+@media(max-width:900px){.cols{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.card h2{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);
+  margin:0 0 11px;font-weight:600}
+label{display:block;font-size:.84rem;color:var(--muted);margin-bottom:4px}
+textarea,select,input[type=text],input[type=number]{width:100%;background:var(--bg);color:var(--fg);
+  border:1px solid var(--line);border-radius:7px;padding:9px 11px;font:inherit;font-size:.92rem}
+textarea{min-height:88px;line-height:1.55;resize:vertical;font-size:.9rem}
+.row{display:flex;gap:11px;flex-wrap:wrap}
+.row>*{flex:1;min-width:130px}
+.fld{margin-bottom:12px}
+button{font:inherit;background:var(--accent);color:#fff;border:0;border-radius:7px;
+  padding:11px 18px;cursor:pointer;font-size:.95rem}
+button:hover{filter:brightness(1.08)}
+button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+button.swatch{width:30px;height:30px;padding:0;border-radius:50%;border:2px solid var(--line);flex:0 0 auto}
+.btns{display:flex;gap:9px;flex-wrap:wrap;margin-top:4px}
+.swrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.stage{background:var(--accent-soft);border:1px solid var(--line);border-radius:10px;
+  padding:20px;display:flex;flex-direction:column;align-items:center;gap:12px}
+.stage canvas{max-width:100%;height:auto;box-shadow:0 3px 18px rgba(0,0,0,.25);background:#fff}
+.dims{font-size:.82rem;color:var(--muted);text-align:center}
+.checks{list-style:none;margin:0;padding:0;font-size:.87rem}
+.checks li{display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+.checks li:last-child{border-bottom:0}
+.checks .k{flex:1;min-width:0}
+.checks .v{font-variant-numeric:tabular-nums;white-space:nowrap}
+.ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+.hint{font-size:.82rem;color:var(--muted);margin-top:7px;line-height:1.5}
+code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.88em}
+label.chk{display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:6px}
+label.chk input{width:auto}
+</style>
+</head>
+<body>
+
+<nav class="appnav">
+  <a href="index.html">Formatter</a>
+  <a href="cover.html" class="active">Cover Creator</a>
+</nav>
+
+<div class="wrap">
+<h1>Book Cover Builder</h1>
+<div class="sub" id="subTag">A full-wrap paperback cover sized to KDP's own spine-width and bleed rules — front, spine, and back as one print-ready PDF.</div>
+
+<div class="cols">
+  <div>
+    <div class="card">
+      <h2>1 · Size</h2>
+      <div class="fld"><label>Binding</label>
+        <select id="binding" onchange="setBinding()">
+          <option value="paperback" selected>Paperback (full wrap, print)</option>
+          <option value="hardcover">Hardcover / case laminate (full wrap, print)</option>
+          <option value="ebook">Ebook (Kindle) — single cover image</option>
+        </select>
+      </div>
+      <div class="row" id="trimRow">
+        <div class="fld"><label>Trim size (match your interior)</label><select id="trim"></select></div>
+        <div class="fld" id="pagesFld"><label>Interior page count</label><input type="number" id="pages" value="150" min="24" max="828"></div>
+      </div>
+      <div class="fld" id="paperFld"><label>Interior paper</label>
+        <select id="paper">
+          <option value="white">White — standard</option>
+          <option value="cream">Cream — common for fiction &amp; poetry</option>
+        </select>
+      </div>
+      <div class="hint" id="sizeHint">Page count and paper decide the spine's width — get the exact page count from the formatter's "Page count" check before building this.</div>
+    </div>
+
+    <div class="card">
+      <h2>2 · Look</h2>
+      <div class="fld"><label>Background</label>
+        <div class="swrow">
+          <button class="swatch" data-c="#1d2a3a" style="background:#1d2a3a" onclick="setColor(this)"></button>
+          <button class="swatch" data-c="#2f2318" style="background:#2f2318" onclick="setColor(this)"></button>
+          <button class="swatch" data-c="#3a2744" style="background:#3a2744" onclick="setColor(this)"></button>
+          <button class="swatch" data-c="#1f3b2e" style="background:#1f3b2e" onclick="setColor(this)"></button>
+          <button class="swatch" data-c="#6b1f2a" style="background:#6b1f2a" onclick="setColor(this)"></button>
+          <button class="swatch" data-c="#efe7d8" style="background:#efe7d8" onclick="setColor(this)"></button>
+          <button class="swatch" data-c="#111111" style="background:#111" onclick="setColor(this)"></button>
+          <input type="text" id="bgColor" value="#1d2a3a" style="width:90px" oninput="renderPreview()">
+          <button class="ghost" onclick="document.getElementById('art').click()">Use an image instead</button>
+          <input type="file" id="art" accept="image/*" style="display:none" onchange="loadArt(this.files[0])">
+        </div>
+      </div>
+      <div class="fld" id="artRow" style="display:none"><label>Image covers</label>
+        <select id="artScope">
+          <option value="full">The whole wrap (front, spine &amp; back)</option>
+          <option value="front">Front cover only (back &amp; spine stay the color above)</option>
+        </select>
+      </div>
+      <div class="fld"><label>Text color</label>
+        <select id="textColor">
+          <option value="#fdfbf6">Light</option>
+          <option value="#1d1b18">Dark</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>3 · Text</h2>
+      <div class="fld"><label>Title</label><input type="text" id="cTitle" value="Neopoet Around the Globe"></div>
+      <div class="fld"><label>Subtitle (optional)</label><input type="text" id="cSub" value=""></div>
+      <div class="fld"><label>Author / editor</label><input type="text" id="cAuthor" value="Neopoet.com"></div>
+      <div class="fld" id="blurbFld"><label>Back-cover blurb</label><textarea id="cBlurb">A gathering of voices from every corner of the world — the poems Neopoet's own writers chose to carry across the year.</textarea></div>
+      <label class="chk" id="spineTextFld"><input type="checkbox" id="spineText" checked> Title on the spine (KDP only prints spine text past 79 pages)</label>
+      <label class="chk"><input type="checkbox" id="showGuides" checked> Show bleed / safety / barcode guides (preview only — not printed)</label>
+    </div>
+
+    <div class="card">
+      <h2>4 · Check against KDP</h2>
+      <ul class="checks" id="checks"></ul>
+      <div class="btns" style="margin-top:13px">
+        <button id="dl" onclick="buildOutput()">Download the cover PDF</button>
+      </div>
+      <div class="hint" id="dlHint">Upload this as your cover file. KDP prints its own barcode in the bottom-right of the back cover — keep that corner clear, which the dashed box in the preview marks.</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="stage">
+      <canvas id="cv"></canvas>
+      <div class="dims" id="dims"></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+// ── KDP's published cover rules ──────────────────────────────────────
+const TRIMS=[
+  [5,8],[5.06,7.81],[5.25,8],[5.5,8.5],[6,9],[6.14,9.21],[6.69,9.61],
+  [7,10],[7.44,9.69],[7.5,9.25],[8,10],[8.25,6],[8.25,8.25],[8.5,8.5],[8.5,11],
+];
+const DEFAULT_TRIM='5.5x8.5';
+const BLEED=.125;
+const SPINE_PER_PAGE={white:.002252,cream:.0025};
+const SPINE_TEXT_MIN_PAGES=79;
+const SAFETY=.25;
+const BARCODE_W=2, BARCODE_H=1.2;
+
+const HARD_TRIMS=[[5.5,8.5],[6,9],[6.14,9.21],[7,10],[8.25,11]];
+const HARD_MIN_PAGES=75, HARD_MAX_PAGES=550;
+const HARD_WRAP=.51;
+const HARD_SAFE=.635;
+const HARD_HINGE=.4;
+const HARD_SPINE_PER_PAGE=.002252;
+const HARD_SPINE_BOARD=.189;
+const HARD_HEADBAND_PAGES=120;
+
+const EBOOK_W=1600, EBOOK_H=2560;
+
+const $=id=>document.getElementById(id);
+let artImg=null, artScope='full';
+
+async function saveFile(filename,blob){
+  try{
+    if(window.claude&&window.claude.use){
+      const downloads=await window.claude.use('downloads');
+      if(downloads){ await downloads.save({filename,data:blob}); return; }
+    }
+  }catch(e){ console.warn('downloads capability unavailable, falling back:',e); }
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=filename;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+function binding(){ return $('binding').value; }
+function dims(){
+  const b=binding();
+  if(b==='ebook')return {binding:b,coverW:EBOOK_W,coverH:EBOOK_H,px:true};
+  const [tw,th]=$('trim').value.split('x').map(Number);
+  if(b==='hardcover'){
+    const pages=Math.max(HARD_MIN_PAGES,Math.min(HARD_MAX_PAGES,parseInt($('pages').value)||HARD_MIN_PAGES));
+    const spine=pages*HARD_SPINE_PER_PAGE+HARD_SPINE_BOARD;
+    const coverW=HARD_WRAP*2+tw*2+spine, coverH=HARD_WRAP*2+th;
+    return {binding:b,tw,th,spine,coverW,coverH,pages};
+  }
+  const pages=Math.max(24,parseInt($('pages').value)||24);
+  const spine=pages*SPINE_PER_PAGE[$('paper').value];
+  const coverW=BLEED*2+tw*2+spine, coverH=BLEED*2+th;
+  return {binding:b,tw,th,spine,coverW,coverH,pages};
+}
+function edgeVals(b){
+  return b.binding==='hardcover'
+    ? {edge:HARD_WRAP, safety:HARD_SAFE-HARD_WRAP, hinge:HARD_HINGE}
+    : {edge:BLEED, safety:SAFETY, hinge:0};
+}
+
+function setBinding(){
+  const b=binding();
+  $('trimRow').style.display=b==='ebook'?'none':'flex';
+  $('pagesFld').style.display=b==='ebook'?'none':'block';
+  $('paperFld').style.display=b==='paperback'?'block':'none';
+  $('blurbFld').style.display=b==='ebook'?'none':'block';
+  $('spineTextFld').style.display=b==='ebook'?'none':'flex';
+  $('artRow').style.display=(artImg&&b!=='ebook')?'block':$('artRow').style.display;
+  if(b==='hardcover'){
+    fillTrims();
+    if(+$('pages').value<HARD_MIN_PAGES)$('pages').value=150;
+    $('pages').min=HARD_MIN_PAGES;$('pages').max=HARD_MAX_PAGES;
+    $('subTag').textContent='A full-wrap hardcover (case-laminate) cover — front, spine, and back as one print-ready PDF.';
+    $('sizeHint').innerHTML='Hardcover only comes in these five trim sizes and 75–550 pages. KDP doesn\'t publish the spine-width formula as text — this is the standard estimate, so re-check the final size against KDP\'s own cover calculator before you upload.';
+    $('dlHint').textContent="Upload this as your hardcover cover file. Keep clear of the hinge gap either side of the spine (dashed lines) — that's where the case lid folds.";
+    $('dl').textContent='Download the cover PDF';
+  }else if(b==='ebook'){
+    $('subTag').textContent="A single Kindle cover image — no spine, no wrap, no bleed, sized to KDP's own ebook spec.";
+    $('sizeHint').textContent='';
+    $('dlHint').textContent='Upload this as your ebook cover image (JPEG). This is separate from your print cover — KDP wants a flat front-cover image, not a wrap, for the Kindle edition.';
+    $('dl').textContent='Download the cover image (JPEG)';
+  }else{
+    fillTrims();
+    $('pages').min=24;$('pages').max=828;
+    if(+$('pages').value<24)$('pages').value=150;
+    $('subTag').textContent="A full-wrap paperback cover sized to KDP's own spine-width and bleed rules — front, spine, and back as one print-ready PDF.";
+    $('sizeHint').textContent='Page count and paper decide the spine\'s width — get the exact page count from the formatter\'s "Page count" check before building this.';
+    $('dlHint').textContent="Upload this as your cover file. KDP prints its own barcode in the bottom-right of the back cover — keep that corner clear, which the dashed box in the preview marks.";
+    $('dl').textContent='Download the cover PDF';
+  }
+  renderPreview();
+}
+
+function setColor(btn){ $('bgColor').value=btn.dataset.c; renderPreview(); }
+function loadArt(f){
+  if(!f)return;
+  const img=new Image();
+  img.onload=()=>{artImg=img; $('artRow').style.display='block'; renderPreview();};
+  img.src=URL.createObjectURL(f);
+}
+
+function renderPreview(){
+  const d=dims();
+  if(d.binding==='ebook'){ renderEbookPreview(d); return; }
+  artScope=$('artScope').value;
+  const DPI=110;
+  const cv=$('cv');
+  cv.width=Math.round(d.coverW*DPI); cv.height=Math.round(d.coverH*DPI);
+  const c=cv.getContext('2d');
+  const I=v=>v*DPI;
+  const bg=$('bgColor').value, tc=$('textColor').value;
+  const {edge,safety,hinge}=edgeVals(d);
+
+  const backX=0, backW=I(edge+d.tw);
+  const spineX=backW, spineW=I(d.spine);
+  const frontX=spineX+spineW, frontW=I(d.tw+edge);
+
+  c.fillStyle=bg; c.fillRect(0,0,cv.width,cv.height);
+  if(artImg){
+    if(artScope==='full'){
+      drawCover(c,artImg,0,0,cv.width,cv.height);
+    }else{
+      drawCover(c,artImg,frontX,0,frontW,cv.height);
+    }
+  }
+
+  c.fillStyle='rgba(0,0,0,.12)'; c.fillRect(spineX,0,2,cv.height);
+  c.fillRect(frontX,0,2,cv.height);
+
+  c.fillStyle=tc; c.textAlign='center';
+  const serif='"Times New Roman",Times,serif';
+
+  const liveW=I(d.tw)-I(edge+safety)-I(hinge);
+  let fy=I(d.th*.4);
+  c.font=`bold ${I(.34)}px ${serif}`;
+  fy=drawWrapped(c,$('cTitle').value,frontX+I(d.tw/2)+I(hinge/2),I(d.th*.38),liveW,I(.4));
+  if($('cSub').value.trim()){
+    c.font=`italic ${I(.17)}px ${serif}`;
+    fy=drawWrapped(c,$('cSub').value,frontX+I(d.tw/2)+I(hinge/2),fy+I(.08),liveW,I(.22));
+  }
+  c.font=`${I(.16)}px ${serif}`;
+  drawWrapped(c,$('cAuthor').value,frontX+I(d.tw/2)+I(hinge/2),I(d.th*.86),liveW,I(.2));
+
+  const backLiveX=I(edge+safety), backLiveW=I(d.tw)-I(edge+safety)-I(hinge)-I(safety);
+  c.textAlign='left'; c.font=`${I(.145)}px ${serif}`;
+  drawWrappedLeft(c,$('cBlurb').value,backLiveX,I(TOPStart(d,edge,safety)),backLiveW,I(.22));
+
+  if($('spineText').checked && d.pages>=SPINE_TEXT_MIN_PAGES && d.spine>.12){
+    c.save();
+    c.translate(spineX+spineW/2, cv.height/2);
+    c.rotate(-Math.PI/2);
+    c.textAlign='center'; c.fillStyle=tc;
+    c.font=`bold ${I(Math.min(.16,d.spine*.55))}px ${serif}`;
+    c.fillText(($('cTitle').value||'').slice(0,40), 0, -I(d.spine)*.08);
+    c.font=`${I(Math.min(.1,d.spine*.4))}px ${serif}`;
+    c.fillText($('cAuthor').value||'', 0, I(d.spine)*.32);
+    c.restore();
+  }
+
+  if($('showGuides').checked){
+    c.strokeStyle='rgba(255,60,60,.8)'; c.setLineDash([6,4]); c.lineWidth=1.5;
+    c.strokeRect(I(edge),I(edge),cv.width-I(edge*2),cv.height-I(edge*2));
+    c.beginPath(); c.moveTo(spineX,0); c.lineTo(spineX,cv.height);
+    c.moveTo(frontX,0); c.lineTo(frontX,cv.height); c.stroke();
+    if(hinge>0){
+      c.strokeStyle='rgba(60,120,255,.7)';
+      c.beginPath(); c.moveTo(spineX-I(hinge),0); c.lineTo(spineX-I(hinge),cv.height);
+      c.moveTo(frontX+I(hinge),0); c.lineTo(frontX+I(hinge),cv.height); c.stroke();
+    }
+    c.strokeStyle='rgba(255,60,60,.8)';
+    const bcY=d.binding==='hardcover'?cv.height-I(.76+BARCODE_H):cv.height-I(edge+BARCODE_H);
+    const bcX=d.binding==='hardcover'?backX+backW-I(hinge+.25+BARCODE_W):backX+backW-I(edge+BARCODE_W);
+    c.strokeRect(bcX,bcY,I(BARCODE_W),I(BARCODE_H));
+    c.setLineDash([]);
+  }
+
+  $('dims').textContent=d.binding==='hardcover'
+    ? `${d.coverW.toFixed(3)}″ × ${d.coverH.toFixed(3)}″ full wrap  ·  spine ≈${d.spine.toFixed(3)}″ for ${d.pages} pages (estimate)  ·  ${HARD_WRAP}″ wrap`
+    : `${d.coverW.toFixed(3)}″ × ${d.coverH.toFixed(3)}″ full wrap  ·  spine ${d.spine.toFixed(3)}″ for ${d.pages} pages  ·  ${BLEED}″ bleed`;
+  renderChecks(d);
+}
+function TOPStart(d,edge,safety){ return edge+safety+0.3; }
+
+function renderEbookPreview(d){
+  const cv=$('cv');
+  cv.width=d.coverW; cv.height=d.coverH;
+  const c=cv.getContext('2d');
+  const bg=$('bgColor').value, tc=$('textColor').value;
+  const serif='"Times New Roman",Times,serif';
+  c.fillStyle=bg; c.fillRect(0,0,cv.width,cv.height);
+  if(artImg)drawCover(c,artImg,0,0,cv.width,cv.height);
+
+  c.fillStyle=tc; c.textAlign='center';
+  const liveW=cv.width*.82;
+  let fy=cv.height*.4;
+  c.font=`bold ${cv.width*.1}px ${serif}`;
+  fy=drawWrapped(c,$('cTitle').value,cv.width/2,cv.height*.38,liveW,cv.width*.115);
+  if($('cSub').value.trim()){
+    c.font=`italic ${cv.width*.05}px ${serif}`;
+    fy=drawWrapped(c,$('cSub').value,cv.width/2,fy+cv.width*.03,liveW,cv.width*.065);
+  }
+  c.font=`${cv.width*.045}px ${serif}`;
+  drawWrapped(c,$('cAuthor').value,cv.width/2,cv.height*.86,liveW,cv.width*.06);
+
+  $('dims').textContent=`${d.coverW} × ${d.coverH} px  ·  1.6:1  ·  JPEG, 72 dpi (KDP's own ebook-cover spec)`;
+  renderEbookChecks(d);
+}
+function renderEbookChecks(d){
+  const rows=[];
+  const add=(k,v,cls)=>rows.push(`<li><span class="k">${k}</span><span class="v ${cls}">${v}</span></li>`);
+  add('Image size',`${d.coverW} × ${d.coverH} px`,'ok');
+  add('Aspect ratio',`${(d.coverH/d.coverW).toFixed(2)}:1 — KDP wants at least 1.6:1`,'ok');
+  add('Format','JPEG','ok');
+  add('This is separate from','your print cover — ebooks get their own flat image','ok');
+  $('checks').innerHTML=rows.join('');
+}
+function drawWrapped(c,text,cx,y,maxW,lead){
+  c.textAlign='center';
+  const words=(text||'').split(/\s+/).filter(Boolean);
+  let line='',lines=[];
+  words.forEach(w=>{
+    const t=(line?line+' ':'')+w;
+    if(c.measureText(t).width>maxW && line){lines.push(line);line=w;} else line=t;
+  });
+  if(line)lines.push(line);
+  lines.forEach((l,i)=>c.fillText(l,cx,y+i*lead));
+  return y+lines.length*lead;
+}
+function drawWrappedLeft(c,text,x,y,maxW,lead){
+  const paras=(text||'').split(/\n+/);
+  let yy=y;
+  paras.forEach(para=>{
+    const words=para.split(/\s+/).filter(Boolean);
+    let line='';
+    words.forEach(w=>{
+      const t=(line?line+' ':'')+w;
+      if(c.measureText(t).width>maxW && line){c.fillText(line,x,yy);yy+=lead;line=w;} else line=t;
+    });
+    if(line){c.fillText(line,x,yy);yy+=lead;}
+    yy+=lead*.3;
+  });
+  return yy;
+}
+function drawCover(c,img,x,y,w,h){
+  const s=Math.max(w/img.width,h/img.height);
+  const iw=img.width*s, ih=img.height*s;
+  c.drawImage(img,x+(w-iw)/2,y+(h-ih)/2,iw,ih);
+}
+function renderChecks(d){
+  const rows=[];
+  const add=(k,v,cls)=>rows.push(`<li><span class="k">${k}</span><span class="v ${cls}">${v}</span></li>`);
+  add('Trim size',`${d.tw}″ × ${d.th}″`,'ok');
+  if(d.binding==='hardcover'){
+    add('Page count used',`${d.pages}`, d.pages>=HARD_MIN_PAGES&&d.pages<=HARD_MAX_PAGES?'ok':'bad');
+    add('&nbsp;↳ hardcover needs 75–550 pages','',d.pages>=HARD_MIN_PAGES&&d.pages<=HARD_MAX_PAGES?'ok':'bad');
+    add('Spine width (estimate)',`≈${d.spine.toFixed(4)}″ (${d.pages} × ${HARD_SPINE_PER_PAGE}″ + ${HARD_SPINE_BOARD}″ board)`,'warn');
+    add('Full-wrap cover size',`${d.coverW.toFixed(3)}″ × ${d.coverH.toFixed(3)}″ (estimate)`,'warn');
+    add('Wrap allowance',`${HARD_WRAP}″ past the front-cover edge`,'ok');
+    add('Safe text margin',`${HARD_SAFE}″ from the book's edge`,'ok');
+    add('Spine hinge gap',`${HARD_HINGE}″ clear on each side of the spine`,'ok');
+    add('Headband',d.pages>HARD_HEADBAND_PAGES?'included — over 120 pages':'none needed yet','ok');
+    add('Verify before upload','against KDP\'s own cover calculator — see the note above','warn');
+  }else{
+    add('Page count used',`${d.pages}`, d.pages>=24&&d.pages<=828?'ok':'bad');
+    add('Spine width',`${d.spine.toFixed(4)}″ (${d.pages} × ${SPINE_PER_PAGE[$('paper').value]}″)`,'ok');
+    add('Full-wrap cover size',`${d.coverW.toFixed(3)}″ × ${d.coverH.toFixed(3)}″`,'ok');
+    add('Bleed',`${BLEED}″ on top, bottom &amp; outside edges`,'ok');
+  }
+  add('Spine text',d.pages>=SPINE_TEXT_MIN_PAGES?'shown — book qualifies':'hidden — KDP needs 79+ pages',
+      d.pages>=SPINE_TEXT_MIN_PAGES?'ok':'warn');
+  add('Barcode area','kept clear, bottom-right of back cover','ok');
+  $('checks').innerHTML=rows.join('');
+}
+
+async function buildOutput(){
+  const d=dims();
+  if(d.binding==='ebook'){ await buildEbookJPEG(d); return; }
+  await buildPDF(d);
+}
+async function buildEbookJPEG(d){
+  const cv=document.createElement('canvas');
+  cv.width=d.coverW; cv.height=d.coverH;
+  const c=cv.getContext('2d');
+  const bg=$('bgColor').value, tc=$('textColor').value;
+  const serif='"Times New Roman",Times,serif';
+  c.fillStyle=bg; c.fillRect(0,0,cv.width,cv.height);
+  if(artImg)drawCover(c,artImg,0,0,cv.width,cv.height);
+  c.fillStyle=tc; c.textAlign='center';
+  const liveW=cv.width*.82;
+  let fy=cv.height*.4;
+  c.font=`bold ${cv.width*.1}px ${serif}`;
+  fy=drawWrapped(c,$('cTitle').value,cv.width/2,cv.height*.38,liveW,cv.width*.115);
+  if($('cSub').value.trim()){
+    c.font=`italic ${cv.width*.05}px ${serif}`;
+    fy=drawWrapped(c,$('cSub').value,cv.width/2,fy+cv.width*.03,liveW,cv.width*.065);
+  }
+  c.font=`${cv.width*.045}px ${serif}`;
+  drawWrapped(c,$('cAuthor').value,cv.width/2,cv.height*.86,liveW,cv.width*.06);
+
+  const safe=($('cTitle').value||'cover').replace(/[^\w\s-]/g,'').trim().replace(/\s+/g,'-').toLowerCase();
+  const blob=await new Promise(res=>cv.toBlob(res,'image/jpeg',.92));
+  await saveFile(`${safe}-ebook-cover-${d.coverW}x${d.coverH}.jpg`,blob);
+}
+async function buildPDF(d){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'in',format:[d.coverW,d.coverH],orientation:'landscape',compress:true});
+  const bg=$('bgColor').value, tc=$('textColor').value;
+  doc.setFillColor(bg); doc.rect(0,0,d.coverW,d.coverH,'F');
+  const {edge,safety,hinge}=edgeVals(d);
+
+  const backW=edge+d.tw, spineX=backW, frontX=spineX+d.spine;
+  if(artImg){
+    const cv=document.createElement('canvas');
+    const DPI=200; cv.width=Math.round(d.coverW*DPI); cv.height=Math.round(d.coverH*DPI);
+    const cx=cv.getContext('2d');
+    if(artScope==='full'){drawCover(cx,artImg,0,0,cv.width,cv.height);}
+    else{drawCover(cx,artImg,frontX*DPI,0,(d.tw+edge)*DPI,cv.height);}
+    doc.addImage(cv.toDataURL('image/jpeg',.92),'JPEG',0,0,d.coverW,d.coverH);
+  }
+
+  doc.setTextColor(tc);
+  const serif='times';
+  doc.setFont(serif,'bold'); doc.setFontSize(26);
+  let fy=d.th*.38;
+  const liveW=d.tw-edge-safety-hinge;
+  const titleLines=doc.splitTextToSize($('cTitle').value,liveW);
+  doc.text(titleLines,frontX+d.tw/2+hinge/2,fy,{align:'center'});
+  fy+=titleLines.length*.34+.1;
+  if($('cSub').value.trim()){
+    doc.setFont(serif,'italic'); doc.setFontSize(13);
+    const subLines=doc.splitTextToSize($('cSub').value,liveW);
+    doc.text(subLines,frontX+d.tw/2+hinge/2,fy,{align:'center'});
+    fy+=subLines.length*.2;
+  }
+  doc.setFont(serif,'normal'); doc.setFontSize(12);
+  doc.text($('cAuthor').value,frontX+d.tw/2+hinge/2,d.th*.86,{align:'center'});
+
+  doc.setFont(serif,'normal'); doc.setFontSize(11);
+  const blurbW=d.tw-edge-safety-hinge-safety;
+  const blurbLines=doc.splitTextToSize($('cBlurb').value,blurbW);
+  doc.text(blurbLines,edge+safety,TOPStart(d,edge,safety),{maxWidth:blurbW});
+
+  if($('spineText').checked && d.pages>=SPINE_TEXT_MIN_PAGES && d.spine>.12){
+    doc.setFont(serif,'bold'); doc.setFontSize(Math.min(12,d.spine*40));
+    doc.text(($('cTitle').value||'').slice(0,40), spineX+d.spine/2, d.th/2-.05,
+      {align:'center',angle:90});
+    doc.setFont(serif,'normal'); doc.setFontSize(Math.min(8,d.spine*28));
+    doc.text($('cAuthor').value||'', spineX+d.spine/2, d.th/2+.3, {align:'center',angle:90});
+  }
+
+  const safe=($('cTitle').value||'cover').replace(/[^\w\s-]/g,'').trim().replace(/\s+/g,'-').toLowerCase();
+  const tag=d.binding==='hardcover'?'hardcover-cover':'cover';
+  await saveFile(`${safe}-${tag}-${d.coverW.toFixed(2)}x${d.coverH.toFixed(2)}.pdf`,doc.output('blob'));
+}
+
+function fillTrims(){
+  const sel=$('trim');
+  const list=binding()==='hardcover'?HARD_TRIMS:TRIMS;
+  const prevVal=sel.value;
+  sel.innerHTML=list.map(([w,h])=>{
+    const v=`${w}x${h}`;
+    const note=v==='6x9'?' — most common':v==='5.5x8.5'?' — common for poetry':'';
+    return `<option value="${v}"${v===DEFAULT_TRIM?' selected':''}>${w}″ × ${h}″${note}</option>`;
+  }).join('');
+  if([...sel.options].some(o=>o.value===prevVal))sel.value=prevVal;
+}
+fillTrims();
+['trim','pages','paper','textColor','cTitle','cSub','cAuthor','cBlurb','spineText','showGuides','bgColor','artScope']
+  .forEach(id=>{
+    const el=$(id);
+    el.addEventListener(el.type==='checkbox'?'change':'input',()=>renderPreview());
+  });
+renderPreview();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});
+}
+</script>
+</body>
+</html>
