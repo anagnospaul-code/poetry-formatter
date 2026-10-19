@@ -589,7 +589,7 @@ function drawBracketsCanvas(c,cx,yBase,halfW,I){
   [-1,1].forEach(side=>{
     const x=cx+side*(halfW+g);
     c.beginPath();
-    c.moveTo(x,yTop);c.lineTo(x,yTop+h);c.lineTo(x-side*w,yTop+h);
+    c.moveTo(x-side*w,yTop);c.lineTo(x,yTop);c.lineTo(x,yTop+h);
     c.stroke();
   });
   c.restore();
@@ -600,7 +600,7 @@ function drawBracketsPDF(doc,cx,yBase,halfW){
   doc.setDrawColor(119);doc.setLineWidth(.011);
   [-1,1].forEach(side=>{
     const x=cx+side*(halfW+g);
-    doc.lines([[0,h],[-side*w,0]],x,yTop);
+    doc.lines([[side*w,0],[0,h]],x-side*w,yTop);
   });
   doc.setDrawColor(0);
 }
