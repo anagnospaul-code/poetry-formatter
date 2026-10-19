@@ -513,7 +513,7 @@ function layout(){
 // "brackets" sits beside the title itself, not in a slot below it, so it
 // needs no extra vertical room the way the other ornaments do.
 function ornamentGap(fs,ornament){ return (ornament==='none'||ornament==='brackets')?0:fs*0.85/72; }
-const ORN_CURVE_V=.22, ORN_CURVE_INSET=.13, ORN_RULE_DROP=.05;
+const ORN_STEP_V1=.16, ORN_STEP_H1=.09, ORN_STEP_V2=.06, ORN_STEP_H2=.035, ORN_RULE_DROP=.05;
 const ORNAMENT_RULE=.3, ORNAMENT_GAPIN=.07, ORNAMENT_DOT_R=.045, ORNAMENT_DOTS_R=.028, ORNAMENT_DOTS_SP=.12;
 const ORNAMENT_AST_R=.032, ORNAMENT_AST_SP=.085;
 const ORNAMENT_DRULE_L=.26, ORNAMENT_DRULE_GAP=.045;
@@ -582,35 +582,39 @@ function drawOrnamentPDF(doc,cx,y,style){
 // Small corner-bracket marks flanking a title, left and right — like a
 // cartouche tab under each top corner. cx/yBase mark the title's center
 // and baseline; halfW is half the title's measured width.
-// The Fiverr sample's ornament, redrawn as a flowing curve: a rule
-// spanning the full text column, with each end sweeping up toward the
-// title in one smooth bezier curve instead of a stepped staircase.
+// The Fiverr sample's actual ornament: a rule spanning the full text
+// column, with a tapering two-step staircase flourish at each end
+// climbing from the rule up toward the title.
 function drawBracketsCanvas(c,left,colW,yBase,I){
   // left/colW/yBase arrive already pixel-scaled (the canvas caller's own
   // coordinate space) — only the ornament's own inch constants need I().
-  const v=I(ORN_CURVE_V),inset=I(ORN_CURVE_INSET);
-  const yRule=yBase+I(ORN_RULE_DROP),yTop=yRule-v;
+  const v1=I(ORN_STEP_V1),h1=I(ORN_STEP_H1),v2=I(ORN_STEP_V2),h2=I(ORN_STEP_H2);
+  const yRule=yBase+I(ORN_RULE_DROP),yTop=yRule-v1-v2;
   const xL=left,xR=left+colW;
-  c.save();c.strokeStyle='#2a2a2a';c.lineWidth=I(.035);c.lineCap='round';
+  c.save();c.strokeStyle='#2a2a2a';c.lineWidth=I(.035);
+  c.lineJoin='round';c.lineCap='round';
   c.beginPath();
   c.moveTo(xL,yTop);
-  c.bezierCurveTo(xL,yTop+v*.65, xL+inset*.5,yRule, xL+inset,yRule);
-  c.lineTo(xR-inset,yRule);
-  c.bezierCurveTo(xR-inset*.5,yRule, xR,yTop+v*.65, xR,yTop);
+  c.lineTo(xL,yTop+v1);
+  c.lineTo(xL+h1,yTop+v1);
+  c.lineTo(xL+h1,yRule);
+  c.lineTo(xL+h1+h2,yRule);
+  c.lineTo(xR-h1-h2,yRule);
+  c.lineTo(xR-h1,yRule);
+  c.lineTo(xR-h1,yTop+v1);
+  c.lineTo(xR,yTop+v1);
+  c.lineTo(xR,yTop);
   c.stroke();
   c.restore();
 }
 function drawBracketsPDF(doc,left,colW,yBase){
-  const v=ORN_CURVE_V,inset=ORN_CURVE_INSET;
-  const yRule=yBase+ORN_RULE_DROP,yTop=yRule-v;
-  const xL=left,xR=left+colW,ruleLen=colW-2*inset;
-  doc.setDrawColor(42);doc.setLineWidth(.035);doc.setLineCap('round');
-  doc.lines([
-    [0,v*.65, inset*.5,v, inset,v],
-    [ruleLen,0],
-    [inset*.5,0, inset,-v*.65, inset,-v]
-  ],xL,yTop);
-  doc.setLineCap(0);
+  const v1=ORN_STEP_V1,h1=ORN_STEP_H1,v2=ORN_STEP_V2,h2=ORN_STEP_H2;
+  const yRule=yBase+ORN_RULE_DROP,yTop=yRule-v1-v2;
+  const ruleLen=colW-2*(h1+h2);
+  doc.setDrawColor(42);doc.setLineWidth(.035);
+  doc.setLineJoin('round');doc.setLineCap('round');
+  doc.lines([[0,v1],[h1,0],[0,v2],[h2,0],[ruleLen,0],[h2,0],[0,-v2],[h1,0],[0,-v1]],left,yTop);
+  doc.setLineJoin('miter');doc.setLineCap(0);
   doc.setDrawColor(0);
 }
 
