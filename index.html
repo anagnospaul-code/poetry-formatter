@@ -625,7 +625,7 @@ function drawBracketsCanvas(c,left,colW,yBase,I){
   const leftPts=capPts(true,xL,yTop);
   const rightPtsFwd=capPts(false,xR,yTop);
   const seq=[...leftPts,...[...rightPtsFwd].reverse(),[xR,yTop]];
-  c.save();c.strokeStyle='#2a2a2a';c.lineWidth=I(.035);
+  c.save();c.strokeStyle='#8a8a8a';c.lineWidth=I(.035);
   c.lineJoin='round';c.lineCap='round';
   c.beginPath();
   c.moveTo(xL,yTop);
@@ -643,7 +643,7 @@ function drawBracketsPDF(doc,left,colW,yBase){
   const leftDeltas=ORN_CAP_DELTAS.map(([dx,dy])=>[-dx,dy]);
   const rightRevDeltas=[...ORN_CAP_DELTAS].reverse().map(([dx,dy])=>[-dx,-dy]);
   const segments=[...leftDeltas,[ruleLen,0],...rightRevDeltas];
-  doc.setDrawColor(42);doc.setLineWidth(.035);
+  doc.setDrawColor(138);doc.setLineWidth(.035);
   doc.setLineJoin('round');doc.setLineCap('round');
   doc.lines(segments,xL,yTop);
   doc.setLineJoin('miter');doc.setLineCap(0);
@@ -852,7 +852,7 @@ function drawPage(cv,page,idx,b){
       if(!dropDone){
         dropDone=true;
         const ch=ln[0],rest=ln.slice(1);
-        c.font=`bold ${I(b.fs*1.6/72)}px ${fam}`;
+        c.font=`${I(b.fs*1.6/72)}px ${fam}`;
         c.fillText(ch,left,y+I(b.fs*.18/72));
         const chW=c.measureText(ch).width+I(.02);
         c.font=`${I(b.fs/72)}px ${fam}`;
@@ -1085,7 +1085,7 @@ async function buildPDF(){
         if(!dropDone){
           dropDone=true;
           const ch=ln[0],rest=ln.slice(1);
-          doc.setFont(fontName,'bold');doc.setFontSize(b.fs*1.6);
+          doc.setFont(fontName,'normal');doc.setFontSize(b.fs*1.6);
           doc.text(ch,left,y+b.fs*.18/72);
           const chW=doc.getTextWidth(ch)+.02;
           doc.setFont(fontName,'normal');doc.setFontSize(b.fs);
