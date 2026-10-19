@@ -203,6 +203,9 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
           <option value="asterism">Asterism ⁂</option>
           <option value="double-rule">Double rule ══</option>
           <option value="flourish">Flourish ⟡</option>
+          <option value="chevron">Chevron ──^──</option>
+          <option value="ring">Ring ──○──</option>
+          <option value="cross">Cross ┼</option>
           <option value="brackets">Corner brackets ⌐¬</option>
           <option value="none">None</option>
         </select></div>
@@ -543,6 +546,9 @@ const ORNAMENT_RULE=.3, ORNAMENT_GAPIN=.07, ORNAMENT_DOT_R=.045, ORNAMENT_DOTS_R
 const ORNAMENT_AST_R=.032, ORNAMENT_AST_SP=.085;
 const ORNAMENT_DRULE_L=.26, ORNAMENT_DRULE_GAP=.045;
 const ORNAMENT_FLOUR_RULE=.16, ORNAMENT_FLOUR_GAP=.06, ORNAMENT_FLOUR_R=.04, ORNAMENT_FLOUR_TICK=.05;
+const ORNAMENT_CHEV_RULE=.26, ORNAMENT_CHEV_GAP=.07, ORNAMENT_CHEV_H=.045;
+const ORNAMENT_RING_RULE=.26, ORNAMENT_RING_GAP=.08, ORNAMENT_RING_R=.035;
+const ORNAMENT_CROSS_LEN=.07;
 function drawOrnamentCanvas(c,cx,y,style,I){
   if(style==='none')return;
   c.save();c.fillStyle='#777';c.strokeStyle='#777';c.lineWidth=I(.012);
@@ -571,6 +577,19 @@ function drawOrnamentCanvas(c,cx,y,style,I){
       c.beginPath();c.moveTo(x1,y);c.lineTo(x1-side*t,y+t);c.stroke();
     });
     c.beginPath();c.moveTo(cx,y-r);c.lineTo(cx+r,y);c.lineTo(cx,y+r);c.lineTo(cx-r,y);c.closePath();c.fill();
+  }else if(style==='chevron'){
+    const L=I(ORNAMENT_CHEV_RULE),g=I(ORNAMENT_CHEV_GAP),h=I(ORNAMENT_CHEV_H);
+    c.beginPath();c.moveTo(cx-L-g,y);c.lineTo(cx-g,y);c.stroke();
+    c.beginPath();c.moveTo(cx+g,y);c.lineTo(cx+g+L,y);c.stroke();
+    c.beginPath();c.moveTo(cx-h,y+h*.7);c.lineTo(cx,y-h);c.lineTo(cx+h,y+h*.7);c.stroke();
+  }else if(style==='ring'){
+    const L=I(ORNAMENT_RING_RULE),g=I(ORNAMENT_RING_GAP),r=I(ORNAMENT_RING_R);
+    c.beginPath();c.moveTo(cx-L-g,y);c.lineTo(cx-g,y);c.stroke();
+    c.beginPath();c.moveTo(cx+g,y);c.lineTo(cx+g+L,y);c.stroke();
+    c.beginPath();c.arc(cx,y,r,0,Math.PI*2);c.stroke();
+  }else if(style==='cross'){
+    const s=I(ORNAMENT_CROSS_LEN);
+    c.beginPath();c.moveTo(cx-s,y);c.lineTo(cx+s,y);c.moveTo(cx,y-s);c.lineTo(cx,y+s);c.stroke();
   }
   c.restore();
 }
@@ -600,6 +619,17 @@ function drawOrnamentPDF(doc,cx,y,style){
       doc.line(x1,y,x1-side*t,y+t);
     });
     doc.lines([[r,-r],[r,r],[-r,r],[-r,-r]],cx-r,y,[1,1],'F',true);
+  }else if(style==='chevron'){
+    const L=ORNAMENT_CHEV_RULE,g=ORNAMENT_CHEV_GAP,h=ORNAMENT_CHEV_H;
+    doc.line(cx-L-g,y,cx-g,y); doc.line(cx+g,y,cx+g+L,y);
+    doc.line(cx-h,y+h*.7,cx,y-h); doc.line(cx,y-h,cx+h,y+h*.7);
+  }else if(style==='ring'){
+    const L=ORNAMENT_RING_RULE,g=ORNAMENT_RING_GAP,r=ORNAMENT_RING_R;
+    doc.line(cx-L-g,y,cx-g,y); doc.line(cx+g,y,cx+g+L,y);
+    doc.circle(cx,y,r,'S');
+  }else if(style==='cross'){
+    const s=ORNAMENT_CROSS_LEN;
+    doc.line(cx-s,y,cx+s,y); doc.line(cx,y-s,cx,y+s);
   }
   doc.setDrawColor(0);doc.setFillColor(0);
 }
