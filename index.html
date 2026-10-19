@@ -854,7 +854,7 @@ function drawPage(cv,page,idx,b){
         const ch=ln[0],rest=ln.slice(1);
         c.font=`${I(b.fs*1.6/72)}px ${fam}`;
         c.fillText(ch,left,y+I(b.fs*.18/72));
-        const chW=c.measureText(ch).width+I(.02);
+        const chW=c.measureText(ch).width-I(.03);
         c.font=`${I(b.fs/72)}px ${fam}`;
         c.fillText(rest,left+chW,y);
       }else{
@@ -1087,7 +1087,7 @@ async function buildPDF(){
           const ch=ln[0],rest=ln.slice(1);
           doc.setFont(fontName,'normal');doc.setFontSize(b.fs*1.6);
           doc.text(ch,left,y+b.fs*.18/72);
-          const chW=doc.getTextWidth(ch)+.02;
+          const chW=doc.getTextWidth(ch)-.03;
           doc.setFont(fontName,'normal');doc.setFontSize(b.fs);
           doc.text(rest,left+chW,y,{maxWidth:colW-chW});
         }else{
