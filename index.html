@@ -191,6 +191,9 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
         <select id="ornament">
           <option value="rule-dot" selected>Short rule &amp; dot ──⬥──</option>
           <option value="dots">Three dots · · ·</option>
+          <option value="asterism">Asterism ⁂</option>
+          <option value="double-rule">Double rule ══</option>
+          <option value="flourish">Flourish ⟡</option>
           <option value="none">None</option>
         </select></div>
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:4px">
@@ -481,6 +484,9 @@ function layout(){
 }
 function ornamentGap(fs,ornament){ return ornament==='none'?0:fs*0.85/72; }
 const ORNAMENT_RULE=.3, ORNAMENT_GAPIN=.07, ORNAMENT_DOT_R=.045, ORNAMENT_DOTS_R=.028, ORNAMENT_DOTS_SP=.12;
+const ORNAMENT_AST_R=.032, ORNAMENT_AST_SP=.085;
+const ORNAMENT_DRULE_L=.26, ORNAMENT_DRULE_GAP=.045;
+const ORNAMENT_FLOUR_RULE=.16, ORNAMENT_FLOUR_GAP=.06, ORNAMENT_FLOUR_R=.04, ORNAMENT_FLOUR_TICK=.05;
 function drawOrnamentCanvas(c,cx,y,style,I){
   if(style==='none')return;
   c.save();c.fillStyle='#777';c.strokeStyle='#777';c.lineWidth=I(.012);
@@ -492,6 +498,23 @@ function drawOrnamentCanvas(c,cx,y,style,I){
   }else if(style==='dots'){
     const r=I(ORNAMENT_DOTS_R),sp=I(ORNAMENT_DOTS_SP);
     [-sp,0,sp].forEach(dx=>{c.beginPath();c.arc(cx+dx,y,r,0,Math.PI*2);c.fill();});
+  }else if(style==='asterism'){
+    const r=I(ORNAMENT_AST_R),sp=I(ORNAMENT_AST_SP);
+    [[0,-sp*.75],[-sp,sp*.45],[sp,sp*.45]].forEach(([dx,dy])=>{
+      c.beginPath();c.arc(cx+dx,y+dy,r,0,Math.PI*2);c.fill();});
+  }else if(style==='double-rule'){
+    const L=I(ORNAMENT_DRULE_L),g=I(ORNAMENT_DRULE_GAP);
+    c.beginPath();c.moveTo(cx-L/2,y-g);c.lineTo(cx+L/2,y-g);c.stroke();
+    c.beginPath();c.moveTo(cx-L/2,y+g);c.lineTo(cx+L/2,y+g);c.stroke();
+  }else if(style==='flourish'){
+    const L=I(ORNAMENT_FLOUR_RULE),g=I(ORNAMENT_FLOUR_GAP),r=I(ORNAMENT_FLOUR_R),t=I(ORNAMENT_FLOUR_TICK);
+    [-1,1].forEach(side=>{
+      const x0=cx+side*(g+r), x1=x0+side*L;
+      c.beginPath();c.moveTo(x0,y);c.lineTo(x1,y);c.stroke();
+      c.beginPath();c.moveTo(x1,y);c.lineTo(x1-side*t,y-t);c.stroke();
+      c.beginPath();c.moveTo(x1,y);c.lineTo(x1-side*t,y+t);c.stroke();
+    });
+    c.beginPath();c.moveTo(cx,y-r);c.lineTo(cx+r,y);c.lineTo(cx,y+r);c.lineTo(cx-r,y);c.closePath();c.fill();
   }
   c.restore();
 }
@@ -505,6 +528,22 @@ function drawOrnamentPDF(doc,cx,y,style){
   }else if(style==='dots'){
     const r=ORNAMENT_DOTS_R,sp=ORNAMENT_DOTS_SP;
     [-sp,0,sp].forEach(dx=>doc.circle(cx+dx,y,r,'F'));
+  }else if(style==='asterism'){
+    const r=ORNAMENT_AST_R,sp=ORNAMENT_AST_SP;
+    [[0,-sp*.75],[-sp,sp*.45],[sp,sp*.45]].forEach(([dx,dy])=>doc.circle(cx+dx,y+dy,r,'F'));
+  }else if(style==='double-rule'){
+    const L=ORNAMENT_DRULE_L,g=ORNAMENT_DRULE_GAP;
+    doc.line(cx-L/2,y-g,cx+L/2,y-g);
+    doc.line(cx-L/2,y+g,cx+L/2,y+g);
+  }else if(style==='flourish'){
+    const L=ORNAMENT_FLOUR_RULE,g=ORNAMENT_FLOUR_GAP,r=ORNAMENT_FLOUR_R,t=ORNAMENT_FLOUR_TICK;
+    [-1,1].forEach(side=>{
+      const x0=cx+side*(g+r), x1=x0+side*L;
+      doc.line(x0,y,x1,y);
+      doc.line(x1,y,x1-side*t,y-t);
+      doc.line(x1,y,x1-side*t,y+t);
+    });
+    doc.lines([[r,-r],[r,r],[-r,r],[-r,-r]],cx-r,y,[1,1],'F',true);
   }
   doc.setDrawColor(0);doc.setFillColor(0);
 }
@@ -898,7 +937,7 @@ function loadJSZip(){
 function escapeXml(s){
   return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 }
-const EPUB_ORNAMENT={'rule-dot':'──✦──','dots':'· · ·','none':''};
+const EPUB_ORNAMENT={'rule-dot':'──✦──','dots':'· · ·','asterism':'⁂','double-rule':'══','flourish':'──❦──','none':''};
 async function buildEPUB(){
   const b=BOOK||layout();
   const entries=b.poems||[];
