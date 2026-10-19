@@ -525,7 +525,20 @@ function ornamentGap(fs,ornament){ return (ornament==='none'||ornament==='bracke
 // (page 30, "Supernova"): the two steps are close to equal height, the
 // first tread is about twice the second, and the rule is inset from the
 // column edges rather than flush to them.
-const ORN_STEP_V1=.15, ORN_STEP_H1=.14, ORN_STEP_V2=.15, ORN_STEP_H2=.07, ORN_RULE_DROP=.06, ORN_RULE_INSET_FRAC=.12;
+const ORN_RULE_DROP=.06, ORN_RULE_INSET_FRAC=.12;
+// The real Fiverr-delivered PDF's end-cap flourish, traced exactly from
+// its own vector path data (page 12's title ornament — a small Greek-key
+// style loop, not a plain staircase) and converted from points to inches.
+// Each pair is a relative [dx,dy] step, read in order from the outer
+// (outside-edge) tip down to where the cap meets the long rule. dy signs
+// are flipped from the source PDF's bottom-up coordinates to this app's
+// top-down canvas/PDF convention.
+const ORN_CAP_DELTAS=[
+  [0,10.043/72],[-11.143/72,0],[-0.857/72,0],[0,0.857/72],[0,7.266/72],
+  [0,0.857/72],[0.857/72,0],[6/72,0],[0.857/72,0],[0,-0.857/72],
+  [0,-3.633/72],[0,-0.857/72],[-0.857/72,0],[-12/72,0],[-0.857/72,0],
+  [0,0.857/72],[0,6.41/72]
+];
 const ORNAMENT_RULE=.3, ORNAMENT_GAPIN=.07, ORNAMENT_DOT_R=.045, ORNAMENT_DOTS_R=.028, ORNAMENT_DOTS_SP=.12;
 const ORNAMENT_AST_R=.032, ORNAMENT_AST_SP=.085;
 const ORNAMENT_DRULE_L=.26, ORNAMENT_DRULE_GAP=.045;
@@ -591,44 +604,48 @@ function drawOrnamentPDF(doc,cx,y,style){
   doc.setDrawColor(0);doc.setFillColor(0);
 }
 
-// Small corner-bracket marks flanking a title, left and right — like a
-// cartouche tab under each top corner. cx/yBase mark the title's center
-// and baseline; halfW is half the title's measured width.
-// The Fiverr sample's actual ornament, measured from the real delivered
-// PDF's vector paths: a rule inset from the column edges, with a
-// two-step staircase flourish at each end climbing toward the title.
+// Small corner flourishes flanking a title, left and right, joined by a
+// long inset rule — like a cartouche tab under each top corner. yBase
+// marks the title's baseline. The end-cap shape (ORN_CAP_DELTAS) is traced
+// point-for-point from the real Fiverr-delivered PDF's own vector path, so
+// each side is built by walking that same delta list, mirrored for the
+// left side and reversed for the return trip up to the right-side tip.
 function drawBracketsCanvas(c,left,colW,yBase,I){
   // left/colW/yBase arrive already pixel-scaled (the canvas caller's own
   // coordinate space) — only the ornament's own inch constants need I().
-  const v1=I(ORN_STEP_V1),h1=I(ORN_STEP_H1),v2=I(ORN_STEP_V2),h2=I(ORN_STEP_H2);
-  const yRule=yBase+I(ORN_RULE_DROP),yTop=yRule-v1-v2;
   const inset=colW*ORN_RULE_INSET_FRAC;
   const xL=left+inset,xR=left+colW-inset;
+  let totalDy=0;ORN_CAP_DELTAS.forEach(([,dy])=>totalDy+=dy);
+  const yRule=yBase+I(ORN_RULE_DROP),yTop=yRule-I(totalDy);
+  function capPts(mirror,sx,sy){
+    let x=sx,y=sy;const pts=[];
+    ORN_CAP_DELTAS.forEach(([dx,dy])=>{x+=I(mirror?-dx:dx);y+=I(dy);pts.push([x,y]);});
+    return pts;
+  }
+  const leftPts=capPts(true,xL,yTop);
+  const rightPtsFwd=capPts(false,xR,yTop);
+  const seq=[...leftPts,...[...rightPtsFwd].reverse(),[xR,yTop]];
   c.save();c.strokeStyle='#2a2a2a';c.lineWidth=I(.035);
   c.lineJoin='round';c.lineCap='round';
   c.beginPath();
   c.moveTo(xL,yTop);
-  c.lineTo(xL,yTop+v1);
-  c.lineTo(xL+h1,yTop+v1);
-  c.lineTo(xL+h1,yRule);
-  c.lineTo(xL+h1+h2,yRule);
-  c.lineTo(xR-h1-h2,yRule);
-  c.lineTo(xR-h1,yRule);
-  c.lineTo(xR-h1,yTop+v1);
-  c.lineTo(xR,yTop+v1);
-  c.lineTo(xR,yTop);
+  seq.forEach(([x,y])=>c.lineTo(x,y));
   c.stroke();
   c.restore();
 }
 function drawBracketsPDF(doc,left,colW,yBase){
-  const v1=ORN_STEP_V1,h1=ORN_STEP_H1,v2=ORN_STEP_V2,h2=ORN_STEP_H2;
-  const yRule=yBase+ORN_RULE_DROP,yTop=yRule-v1-v2;
   const inset=colW*ORN_RULE_INSET_FRAC;
   const xL=left+inset,xR=left+colW-inset;
-  const ruleLen=(xR-xL)-2*(h1+h2);
+  let totalDx=0,totalDy=0;
+  ORN_CAP_DELTAS.forEach(([dx,dy])=>{totalDx+=dx;totalDy+=dy;});
+  const capWidth=-totalDx,yRule=yBase+ORN_RULE_DROP,yTop=yRule-totalDy;
+  const ruleLen=(xR-xL)-2*capWidth;
+  const leftDeltas=ORN_CAP_DELTAS.map(([dx,dy])=>[-dx,dy]);
+  const rightRevDeltas=[...ORN_CAP_DELTAS].reverse().map(([dx,dy])=>[-dx,-dy]);
+  const segments=[...leftDeltas,[ruleLen,0],...rightRevDeltas];
   doc.setDrawColor(42);doc.setLineWidth(.035);
   doc.setLineJoin('round');doc.setLineCap('round');
-  doc.lines([[0,v1],[h1,0],[0,v2],[h2,0],[ruleLen,0],[h2,0],[0,-v2],[h1,0],[0,-v1]],xL,yTop);
+  doc.lines(segments,xL,yTop);
   doc.setLineJoin('miter');doc.setLineCap(0);
   doc.setDrawColor(0);
 }
