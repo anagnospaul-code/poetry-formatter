@@ -121,7 +121,10 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
 
       <div id="modeOne">
         <div class="fld"><label>Title of this poem</label><input type="text" id="mTitle" placeholder="e.g. Resurrection"></div>
-        <div class="fld"><label>Author (optional — leave blank if it's just yours)</label><input type="text" id="mAuthor" placeholder="e.g. Mark Loiselle"></div>
+        <div class="row">
+          <div class="fld"><label>Author (optional — leave blank if it's just yours)</label><input type="text" id="mAuthor" placeholder="e.g. Mark Loiselle"></div>
+          <div class="fld"><label>Neopoet username (optional)</label><input type="text" id="mUsername" placeholder="e.g. mloiselle"></div>
+        </div>
         <div class="fld"><label>Paste this one poem's text (copy it from the Neopoet page or the author's submission)</label>
           <textarea id="mBody" spellcheck="false" style="min-height:140px"></textarea>
         </div>
@@ -295,8 +298,8 @@ function addManualPoem(){
   const lines=body.replace(/\r\n?/g,'\n').split('\n');
   while(lines.length&&!lines[0].trim())lines.shift();
   while(lines.length&&!lines[lines.length-1].trim())lines.pop();
-  manualPoems.push({kind:'poem',title,author:$('mAuthor').value.trim(),lines});
-  $('mTitle').value='';$('mAuthor').value='';$('mBody').value='';
+  manualPoems.push({kind:'poem',title,author:$('mAuthor').value.trim(),username:$('mUsername').value.trim(),lines});
+  $('mTitle').value='';$('mAuthor').value='';$('mUsername').value='';$('mBody').value='';
   $('mTitle').focus();
   renderPreview();
 }
@@ -323,13 +326,20 @@ function parsePoems(raw){
       if(!lines.length)return null;
       const title=lines.shift().trim();
       while(lines.length&&!lines[0].trim())lines.shift();
-      let author='';
+      let author='',username='';
       if(lines.length){
         const m=lines[0].trim().match(/^~\s*(.+?)\s*~$/)||lines[0].trim().match(/^by\s+(.+)$/i);
-        if(m){author=m[1].trim();lines.shift();
+        if(m){
+          let a=m[1].trim();
+          // "Jane Doe (jdoe123)" or "Jane Doe — jdoe123" carries a Neopoet
+          // username alongside the display name; pull it out separately.
+          const um=a.match(/^(.+?)\s*[\(（]\s*@?([A-Za-z0-9_.-]+)\s*[\)）]$/)||
+                    a.match(/^(.+?)\s*[—–-]\s*@([A-Za-z0-9_.-]+)$/);
+          if(um){a=um[1].trim();username=um[2].trim();}
+          author=a;lines.shift();
           while(lines.length&&!lines[0].trim())lines.shift();}
       }
-      return {kind:'poem',title,author,lines};
+      return {kind:'poem',title,author,username,lines};
     })
     .filter(Boolean);
 }
@@ -449,6 +459,14 @@ function renderStatus(split,poemCount){
   box.innerHTML=`<div class="status ${cls}"><span class="dot"></span><div>${msg}</div></div>`;
 }
 function escapeHtml(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+// Combine an author name with their Neopoet username for display, e.g.
+// "Jane Doe  ·  Neopoet: jdoe123" — either part may be missing.
+function bylineText(author,username){
+  const parts=[];
+  if(author)parts.push(author);
+  if(username)parts.push(`Neopoet: ${username}`);
+  return parts.join('  ·  ');
+}
 
 // ── Layout ─────────────────────────────────────────────────────────────
 function layout(){
@@ -583,12 +601,12 @@ function buildPages(entries,tw,th,fs,gutter,startRight,wantToc,ornament,dedicati
     });
     let idx=0,first=true;
     while(idx<flowed.length||first){
-      const avail=colH-(first?(p.author?titleGapAuthor:titleGap):0);
+      const avail=colH-(first?((p.author||p.username)?titleGapAuthor:titleGap):0);
       const room=Math.max(1,Math.floor(avail/lead));
       let take=Math.min(room,flowed.length-idx);
       if(flowed.length-idx-take===1&&take>2)take-=1;
       const slice=flowed.slice(idx,idx+take);
-      pages.push({kind:'poem',title:first?p.title:p.title+' (cont.)',author:p.author,
+      pages.push({kind:'poem',title:first?p.title:p.title+' (cont.)',author:p.author,username:p.username,
                   showTitle:first,lines:slice,poemIndex:pi,ornament:first?ornament:'none'});
       idx+=take;first=false;
       if(take<=0)break;
@@ -702,9 +720,9 @@ function drawPage(cv,page,idx,b){
       c.font=`${I(b.fs*1.32/72)}px ${fam}`;
       c.fillText(page.title,left,y);
       y+=I(b.fs*1.9/72);
-      if(page.author){
+      if(page.author||page.username){
         c.font=`${I(b.fs*.92/72)}px ${fam}`;c.fillStyle='#555';
-        c.fillText(page.author,left,y);c.fillStyle='#111';
+        c.fillText(bylineText(page.author,page.username),left,y);c.fillStyle='#111';
         y+=I(b.fs*1.3/72);
       }
       if(page.ornament&&page.ornament!=='none'){
@@ -763,7 +781,7 @@ function renderFoundList(entries){
         `<span class="ftext">§ ${escapeHtml(e.title)}</span>${rm}</li>`;
     n++;
     return `<li><span class="fnum">${n}.</span><span class="ftext">${escapeHtml(e.title)}`+
-      (e.author?` <span class="fauthor">— ${escapeHtml(e.author)}</span>`:'')+
+      ((e.author||e.username)?` <span class="fauthor">— ${escapeHtml(bylineText(e.author,e.username))}</span>`:'')+
       `</span>${rm}</li>`;
   }).join('');
 }
@@ -883,10 +901,10 @@ async function buildPDF(){
         doc.setFont(fontName,'bold');doc.setFontSize(b.fs*1.32);
         doc.text(page.title,left,y,{maxWidth:colW});
         y+=b.fs*1.9/72;
-        if(page.author){
+        if(page.author||page.username){
           doc.setFont(fontName,'normal');doc.setFontSize(b.fs*.92);
           doc.setTextColor(85,85,85);
-          doc.text(page.author,left,y,{maxWidth:colW});
+          doc.text(bylineText(page.author,page.username),left,y,{maxWidth:colW});
           doc.setTextColor(17,17,17);
           y+=b.fs*1.3/72;
         }
@@ -1013,7 +1031,7 @@ nav li.poem{margin-left:1.4em}`;
     const href=`poem_${String(++n).padStart(4,'0')}.xhtml`;
     const orn=EPUB_ORNAMENT[b.ornament]||'';
     const body=`<h2 class="poem-title">${escapeXml(entry.title)}</h2>`+
-      (entry.author?`<p class="byline">${escapeXml(entry.author)}</p>`:'')+
+      ((entry.author||entry.username)?`<p class="byline">${escapeXml(bylineText(entry.author,entry.username))}</p>`:'')+
       (orn?`<p class="ornament">${orn}</p>`:'')+
       `<div class="poem">${escapeXml(entry.lines.join('\n'))}</div>`;
     addItem(`item-${n}`,href,'application/xhtml+xml',xhtmlHead(entry.title)+body+'</body></html>',
