@@ -591,7 +591,7 @@ function drawBracketsCanvas(c,left,colW,yBase,I){
   const v1=I(ORN_STEP_V1),h1=I(ORN_STEP_H1),v2=I(ORN_STEP_V2),h2=I(ORN_STEP_H2);
   const yRule=yBase+I(ORN_RULE_DROP),yTop=yRule-v1-v2;
   const xL=left,xR=left+colW;
-  c.save();c.strokeStyle='#777';c.lineWidth=I(.011);
+  c.save();c.strokeStyle='#2a2a2a';c.lineWidth=I(.022);
   c.beginPath();
   c.moveTo(xL,yTop);
   c.lineTo(xL,yTop+v1);
@@ -610,7 +610,7 @@ function drawBracketsPDF(doc,left,colW,yBase){
   const v1=ORN_STEP_V1,h1=ORN_STEP_H1,v2=ORN_STEP_V2,h2=ORN_STEP_H2;
   const yRule=yBase+ORN_RULE_DROP,yTop=yRule-v1-v2;
   const ruleLen=colW-2*(h1+h2);
-  doc.setDrawColor(119);doc.setLineWidth(.011);
+  doc.setDrawColor(42);doc.setLineWidth(.022);
   doc.lines([[0,v1],[h1,0],[0,v2],[h2,0],[ruleLen,0],[h2,0],[0,-v2],[h1,0],[0,-v1]],left,yTop);
   doc.setDrawColor(0);
 }
