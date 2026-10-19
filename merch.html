@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Merch Designer</title>
+<meta name="description" content="Design artwork for your Fourthwall store, preview it on real products, and publish directly.">
+<meta name="theme-color" content="#8a6d3b">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&display=swap">
+<script src="lora-fonts.js"></script>
+<style>
+:root{
+  --bg:#f7f5f1; --panel:#fff; --fg:#1d1b18; --muted:#6c665d;
+  --line:#ddd7cd; --accent:#8a6d3b; --accent-soft:#f0e9dc;
+  --ok:#2f6b43; --warn:#9a5b1e; --bad:#9c3028;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#15130f; --panel:#1e1b16; --fg:#ece7dd; --muted:#9b9388;
+  --line:#332e26; --accent:#c8a96e; --accent-soft:#2a2318;
+  --ok:#6ec08a; --warn:#d49a55; --bad:#e0796e; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#15130f; --panel:#1e1b16; --fg:#ece7dd; --muted:#9b9388;
+  --line:#332e26; --accent:#c8a96e; --accent-soft:#2a2318;
+  --ok:#6ec08a; --warn:#d49a55; --bad:#e0796e; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);
+  font:15px/1.6 'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif}
+.appnav{display:flex;gap:2px;background:var(--panel);border-bottom:1px solid var(--line);
+  padding:10px 16px;position:sticky;top:env(safe-area-inset-top,0px);z-index:10}
+.appnav a{font:inherit;font-size:.86rem;letter-spacing:.02em;color:var(--muted);text-decoration:none;
+  padding:8px 14px;border-radius:7px}
+.appnav a.active{background:var(--accent);color:#fff}
+.wrap{max-width:1180px;margin:0 auto;padding-block:26px;padding-left:16px;padding-right:16px}
+h1{font-size:1.5rem;font-weight:400;letter-spacing:.01em;margin:0 0 3px}
+.sub{color:var(--muted);font-size:.92rem;margin-bottom:22px}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:20px;align-items:start}
+@media(max-width:900px){.cols{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.card h2{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);
+  margin:0 0 11px;font-weight:600}
+label{display:block;font-size:.84rem;color:var(--muted);margin-bottom:4px}
+textarea,select,input[type=text],input[type=number],input[type=color],input[type=password]{width:100%;background:var(--bg);color:var(--fg);
+  border:1px solid var(--line);border-radius:7px;padding:9px 11px;font:inherit;font-size:.92rem}
+input[type=color]{padding:3px;height:38px}
+.row{display:flex;gap:11px;flex-wrap:wrap}
+.row>*{flex:1;min-width:120px}
+.fld{margin-bottom:12px}
+button{font:inherit;background:var(--accent);color:#fff;border:0;border-radius:7px;
+  padding:11px 18px;cursor:pointer;font-size:.95rem}
+button:hover{filter:brightness(1.08)}
+button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+button.bad{background:var(--bad)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.btns{display:flex;gap:9px;flex-wrap:wrap;margin-top:4px}
+.stage{background:var(--accent-soft);border:1px solid var(--line);border-radius:10px;
+  padding:20px;display:flex;flex-direction:column;align-items:center;gap:12px}
+.stage canvas{max-width:100%;height:auto;box-shadow:0 3px 18px rgba(0,0,0,.25);background:#fff;
+  border-radius:4px;touch-action:none;cursor:default}
+.dims{font-size:.82rem;color:var(--muted);text-align:center}
+.hint{font-size:.82rem;color:var(--muted);margin-top:7px;line-height:1.5}
+.layerlist{list-style:none;margin:0;padding:0;font-size:.87rem}
+.layerlist li{display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);align-items:center}
+.layerlist li:last-child{border-bottom:0}
+.layerlist li.sel{color:var(--accent);font-weight:600}
+.layerlist li span.name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.layerlist li button{padding:4px 9px;font-size:.78rem}
+.swrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.notice{background:var(--accent-soft);border:1px solid var(--line);border-radius:8px;padding:11px 13px;font-size:.85rem;color:var(--muted);line-height:1.55;margin-bottom:12px}
+code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.88em}
+.statusline{font-size:.85rem;margin-top:8px}
+.statusline.ok{color:var(--ok)} .statusline.bad{color:var(--bad)}
+</style>
+</head>
+<body>
+
+<nav class="appnav">
+  <a href="index.html">Formatter</a>
+  <a href="cover.html">Cover Creator</a>
+  <a href="merch.html" class="active">Merch Designer</a>
+</nav>
+
+<div class="wrap">
+<h1>Merch Designer</h1>
+<div class="sub">Design artwork, preview it on a real product, then publish straight to your Fourthwall store.</div>
+
+<div class="cols">
+  <div>
+    <div class="card">
+      <h2>1 &middot; Product</h2>
+      <div class="fld"><label>Preview on</label>
+        <select id="product" onchange="renderStage()">
+          <option value="tee">Unisex tee</option>
+          <option value="hoodie">Hoodie</option>
+          <option value="mug">Mug</option>
+        </select>
+      </div>
+      <div class="fld"><label>Product color</label>
+        <div class="swrow" id="colorSwatches"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>2 &middot; Add to design</h2>
+      <div class="btns">
+        <button onclick="addText()">+ Text</button>
+        <button class="ghost" onclick="document.getElementById('imgFile').click()">+ Image</button>
+        <input type="file" id="imgFile" accept="image/*" style="display:none" onchange="addImage(event)">
+      </div>
+      <div class="hint">Click a layer below (or on the canvas) to select it, then drag to move it. Use the controls that appear to resize, rotate, recolor or edit text.</div>
+    </div>
+
+    <div class="card">
+      <h2>3 &middot; Layers</h2>
+      <ul class="layerlist" id="layerList"></ul>
+      <div id="layerEditor"></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="stage">
+      <canvas id="cv" width="900" height="900"></canvas>
+      <div class="dims" id="dims">Printable area shown as the dashed guide.</div>
+    </div>
+    <div class="btns" style="margin-top:12px">
+      <button onclick="exportPNG()">Download design PNG</button>
+      <button class="ghost" onclick="clearAll()">Clear design</button>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>4 &middot; Publish to Fourthwall</h2>
+      <div class="notice">
+        To publish directly you'll need an Open API username/password from your store:
+        <b>Settings &rarr; For Developers &rarr; Open API &rarr; Create API User</b> in your Fourthwall admin
+        (requires Super Admin). Until then, use <b>Download design PNG</b> above and upload it manually
+        from your Fourthwall dashboard.
+      </div>
+      <div class="row">
+        <div class="fld"><label>API username</label><input type="text" id="fwUser" autocomplete="off"></div>
+        <div class="fld"><label>API password</label><input type="password" id="fwPass" autocomplete="off"></div>
+      </div>
+      <div class="fld"><label>Product name</label><input type="text" id="fwName" placeholder="e.g. Permanent Ink Tee"></div>
+      <div class="row">
+        <div class="fld"><label>Product type</label>
+          <select id="fwTemplate">
+            <option value="tee">Unisex tee</option>
+            <option value="hoodie">Hoodie</option>
+            <option value="mug">Mug</option>
+          </select>
+        </div>
+        <div class="fld"><label class="chk" style="display:flex;align-items:center;gap:7px;margin-top:9px">
+          <input type="checkbox" id="fwPublish" style="width:auto"> Publish live immediately
+        </label></div>
+      </div>
+      <div class="btns">
+        <button onclick="publishToFourthwall()" id="fwBtn">Publish design</button>
+      </div>
+      <div class="statusline" id="fwStatus"></div>
+      <div class="hint">Credentials stay in your browser (saved to this device only) and are sent straight to Fourthwall's API — never through any server of mine. If your browser blocks the request (a CORS error in the status line below), say so and I'll add a small relay for it.</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+const PRODUCTS={
+  tee:{label:'Unisex tee',colors:['#ffffff','#1d1b18','#8a6d3b','#6c8f7a'],area:{x:.30,y:.22,w:.40,h:.46}},
+  hoodie:{label:'Hoodie',colors:['#ffffff','#1d1b18','#6c665d','#8a6d3b'],area:{x:.32,y:.30,w:.36,h:.38}},
+  mug:{label:'Mug',colors:['#ffffff','#1d1b18'],area:{x:.30,y:.32,w:.40,h:.34}}
+};
+let bgColor=PRODUCTS.tee.colors[0];
+let layers=[]; // {id,type,x,y(0-1 center, relative to print area),scale,rot,text,font,size,color,img,w,h}
+let selId=null, nextId=1;
+let drag=null;
+
+function fam(){return `"Lora","Times New Roman",Times,serif`;}
+
+function buildSwatches(){
+  const p=PRODUCTS[document.getElementById('product').value];
+  const box=document.getElementById('colorSwatches'); box.innerHTML='';
+  p.colors.forEach(c=>{
+    const b=document.createElement('button');
+    b.className='swatch'; b.style.cssText='width:28px;height:28px;padding:0;border-radius:50%;border:2px solid var(--line);background:'+c;
+    if(c===bgColor)b.style.outline='2px solid var(--accent)';
+    b.onclick=()=>{bgColor=c;buildSwatches();renderStage();};
+    box.appendChild(b);
+  });
+}
+
+function printArea(){
+  const p=PRODUCTS[document.getElementById('product').value];
+  return {x:p.area.x*cv.width,y:p.area.y*cv.height,w:p.area.w*cv.width,h:p.area.h*cv.height};
+}
+
+function drawSilhouette(kind,color){
+  const W=cv.width,H=cv.height;
+  ctx.save();ctx.fillStyle=color;ctx.strokeStyle='rgba(0,0,0,.18)';ctx.lineWidth=2;
+  if(kind==='tee'){
+    ctx.beginPath();
+    ctx.moveTo(W*.36,H*.08);
+    ctx.lineTo(W*.64,H*.08);
+    ctx.lineTo(W*.70,H*.17);
+    ctx.lineTo(W*.90,H*.27);
+    ctx.lineTo(W*.80,H*.42);
+    ctx.lineTo(W*.72,H*.37);
+    ctx.lineTo(W*.72,H*.90);
+    ctx.lineTo(W*.28,H*.90);
+    ctx.lineTo(W*.28,H*.37);
+    ctx.lineTo(W*.20,H*.42);
+    ctx.lineTo(W*.10,H*.27);
+    ctx.lineTo(W*.30,H*.17);
+    ctx.closePath();
+    ctx.fill();ctx.stroke();
+  }else if(kind==='hoodie'){
+    // body + sleeves, one closed outline
+    ctx.beginPath();
+    ctx.moveTo(W*.30,H*.14);
+    ctx.lineTo(W*.70,H*.14);
+    ctx.lineTo(W*.68,H*.19);
+    ctx.lineTo(W*.90,H*.30);
+    ctx.lineTo(W*.79,H*.46);
+    ctx.lineTo(W*.70,H*.40);
+    ctx.lineTo(W*.70,H*.92);
+    ctx.lineTo(W*.30,H*.92);
+    ctx.lineTo(W*.30,H*.40);
+    ctx.lineTo(W*.21,H*.46);
+    ctx.lineTo(W*.10,H*.30);
+    ctx.lineTo(W*.32,H*.19);
+    ctx.closePath();
+    ctx.fill();ctx.stroke();
+    // hood, as its own closed dome above the shoulder line
+    ctx.beginPath();
+    ctx.moveTo(W*.30,H*.14);
+    ctx.quadraticCurveTo(W*.30,H*.015,W*.5,H*.015);
+    ctx.quadraticCurveTo(W*.70,H*.015,W*.70,H*.14);
+    ctx.closePath();
+    ctx.fill();ctx.stroke();
+    // neckline shadow, inside the hood opening
+    ctx.beginPath();ctx.ellipse(W*.5,H*.15,W*.085,H*.045,0,0,Math.PI);ctx.fillStyle='rgba(0,0,0,.1)';ctx.fill();
+    // pouch pocket
+    ctx.fillStyle=color;
+    ctx.beginPath();ctx.roundRect(W*.33,H*.58,W*.34,H*.16,10);ctx.fill();ctx.stroke();
+  }else if(kind==='mug'){
+    ctx.beginPath();
+    ctx.roundRect(W*.26,H*.20,W*.48,H*.62,[8,8,18,18]);
+    ctx.fill();ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(W*.5,H*.20,W*.24,H*.035,0,0,Math.PI*2);
+    ctx.fillStyle='rgba(0,0,0,.12)';ctx.fill();
+    ctx.fillStyle=color;
+    ctx.beginPath();
+    ctx.moveTo(W*.74,H*.34);
+    ctx.quadraticCurveTo(W*.93,H*.40,W*.74,H*.62);
+    ctx.lineWidth=W*.045;ctx.strokeStyle=color;ctx.stroke();
+    ctx.strokeStyle='rgba(0,0,0,.18)';ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(W*.74,H*.34);
+    ctx.quadraticCurveTo(W*.93,H*.40,W*.74,H*.62);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function renderStage(){
+  buildSwatches();
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.fillStyle='#f3f1ec';ctx.fillRect(0,0,cv.width,cv.height);
+  const kind=document.getElementById('product').value;
+  drawSilhouette(kind,bgColor);
+  const a=printArea();
+  ctx.save();
+  ctx.strokeStyle='rgba(0,0,0,.28)';ctx.setLineDash([6,5]);ctx.lineWidth=1.5;
+  ctx.strokeRect(a.x,a.y,a.w,a.h);
+  ctx.restore();
+  ctx.save();
+  ctx.beginPath();ctx.rect(a.x,a.y,a.w,a.h);ctx.clip();
+  layers.forEach(ly=>drawLayer(ly,a));
+  ctx.restore();
+  if(selId!=null){
+    const ly=layers.find(l=>l.id===selId);
+    if(ly){
+      const b=layerBounds(ly,a);
+      ctx.save();ctx.strokeStyle='#2f6b43';ctx.lineWidth=2;ctx.setLineDash([]);
+      ctx.strokeRect(b.x,b.y,b.w,b.h);
+      ctx.restore();
+    }
+  }
+  renderLayerList();
+}
+
+function drawLayer(ly,a){
+  const cx=a.x+ly.x*a.w, cy=a.y+ly.y*a.h;
+  ctx.save();
+  ctx.translate(cx,cy);ctx.rotate(ly.rot||0);
+  if(ly.type==='text'){
+    ctx.fillStyle=ly.color;
+    ctx.font=`${ly.size*ly.scale}px ${fam()}`;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(ly.text,0,0);
+  }else if(ly.type==='image'&&ly.img){
+    const w=ly.w*ly.scale,h=ly.h*ly.scale;
+    ctx.drawImage(ly.img,-w/2,-h/2,w,h);
+  }
+  ctx.restore();
+}
+
+function layerBounds(ly,a){
+  const cx=a.x+ly.x*a.w, cy=a.y+ly.y*a.h;
+  let w,h;
+  if(ly.type==='text'){
+    ctx.save();ctx.font=`${ly.size*ly.scale}px ${fam()}`;
+    w=ctx.measureText(ly.text).width+14; h=ly.size*ly.scale*1.3;
+    ctx.restore();
+  }else{ w=ly.w*ly.scale; h=ly.h*ly.scale; }
+  return {x:cx-w/2,y:cy-h/2,w,h};
+}
+
+function renderLayerList(){
+  const ul=document.getElementById('layerList');
+  ul.innerHTML='';
+  if(!layers.length){ul.innerHTML='<li style="color:var(--muted)">No layers yet &mdash; add text or an image above.</li>';}
+  layers.forEach(ly=>{
+    const li=document.createElement('li');
+    if(ly.id===selId)li.className='sel';
+    const nm=document.createElement('span');
+    nm.className='name';
+    nm.textContent=ly.type==='text'?('"'+ly.text+'"'):'Image';
+    nm.onclick=()=>{selId=ly.id;renderStage();renderEditor();};
+    const del=document.createElement('button');
+    del.className='ghost';del.textContent='Delete';
+    del.onclick=()=>{layers=layers.filter(l=>l.id!==ly.id);if(selId===ly.id)selId=null;renderStage();renderEditor();};
+    li.appendChild(nm);li.appendChild(del);
+    ul.appendChild(li);
+  });
+  renderEditor();
+}
+
+function renderEditor(){
+  const box=document.getElementById('layerEditor');
+  const ly=layers.find(l=>l.id===selId);
+  if(!ly){box.innerHTML='';return;}
+  if(ly.type==='text'){
+    box.innerHTML=`
+      <div class="fld"><label>Text</label><input type="text" id="edText" value="${ly.text.replace(/"/g,'&quot;')}"></div>
+      <div class="row">
+        <div class="fld"><label>Color</label><input type="color" id="edColor" value="${ly.color}"></div>
+        <div class="fld"><label>Size</label><input type="number" id="edSize" value="${Math.round(ly.size)}" min="10" max="300"></div>
+      </div>
+      <div class="row">
+        <div class="fld"><label>Scale</label><input type="number" id="edScale" value="${ly.scale.toFixed(2)}" step="0.05" min="0.2" max="4"></div>
+        <div class="fld"><label>Rotate (deg)</label><input type="number" id="edRot" value="${Math.round((ly.rot||0)*180/Math.PI)}" step="5"></div>
+      </div>`;
+    document.getElementById('edText').oninput=e=>{ly.text=e.target.value;renderStage();};
+    document.getElementById('edColor').oninput=e=>{ly.color=e.target.value;renderStage();};
+    document.getElementById('edSize').oninput=e=>{ly.size=+e.target.value||ly.size;renderStage();};
+    document.getElementById('edScale').oninput=e=>{ly.scale=+e.target.value||1;renderStage();};
+    document.getElementById('edRot').oninput=e=>{ly.rot=(+e.target.value||0)*Math.PI/180;renderStage();};
+  }else{
+    box.innerHTML=`
+      <div class="row">
+        <div class="fld"><label>Scale</label><input type="number" id="edScale" value="${ly.scale.toFixed(2)}" step="0.05" min="0.1" max="6"></div>
+        <div class="fld"><label>Rotate (deg)</label><input type="number" id="edRot" value="${Math.round((ly.rot||0)*180/Math.PI)}" step="5"></div>
+      </div>`;
+    document.getElementById('edScale').oninput=e=>{ly.scale=+e.target.value||1;renderStage();};
+    document.getElementById('edRot').oninput=e=>{ly.rot=(+e.target.value||0)*Math.PI/180;renderStage();};
+  }
+}
+
+function addText(){
+  const id=nextId++;
+  layers.push({id,type:'text',x:.5,y:.5,scale:1,rot:0,text:'Your text',font:'lora',size:48,color:'#1d1b18'});
+  selId=id;renderStage();renderEditor();
+}
+function addImage(ev){
+  const file=ev.target.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      const id=nextId++;
+      const maxW=printArea().w*.7;
+      const scale0=Math.min(1,maxW/img.width);
+      layers.push({id,type:'image',x:.5,y:.5,scale:1,rot:0,img,w:img.width*scale0,h:img.height*scale0});
+      selId=id;renderStage();renderEditor();
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+  ev.target.value='';
+}
+function clearAll(){ if(!layers.length)return; if(!confirm('Clear the whole design?'))return; layers=[];selId=null;renderStage();renderEditor(); }
+
+// Pointer drag to move the selected (or hit) layer
+function hitTest(px,py){
+  const a=printArea();
+  for(let i=layers.length-1;i>=0;i--){
+    const b=layerBounds(layers[i],a);
+    if(px>=b.x&&px<=b.x+b.w&&py>=b.y&&py<=b.y+b.h)return layers[i];
+  }
+  return null;
+}
+function cvPoint(ev){
+  const r=cv.getBoundingClientRect();
+  const x=(ev.clientX-r.left)*(cv.width/r.width);
+  const y=(ev.clientY-r.top)*(cv.height/r.height);
+  return {x,y};
+}
+cv.addEventListener('pointerdown',ev=>{
+  const p=cvPoint(ev);
+  const hit=hitTest(p.x,p.y);
+  if(hit){
+    selId=hit.id;
+    const a=printArea();
+    drag={id:hit.id,offX:p.x-(a.x+hit.x*a.w),offY:p.y-(a.y+hit.y*a.h)};
+    cv.setPointerCapture(ev.pointerId);
+  }else{
+    selId=null;
+  }
+  renderStage();renderEditor();
+});
+cv.addEventListener('pointermove',ev=>{
+  if(!drag)return;
+  const p=cvPoint(ev);
+  const a=printArea();
+  const ly=layers.find(l=>l.id===drag.id); if(!ly)return;
+  ly.x=(p.x-drag.offX-a.x)/a.w;
+  ly.y=(p.y-drag.offY-a.y)/a.h;
+  ly.x=Math.min(1.3,Math.max(-0.3,ly.x));
+  ly.y=Math.min(1.3,Math.max(-0.3,ly.y));
+  renderStage();
+});
+['pointerup','pointercancel'].forEach(evt=>cv.addEventListener(evt,()=>{drag=null;}));
+
+function exportPNG(){
+  if(!layers.length){alert('Add something to the design first.');return;}
+  const a=printArea();
+  const out=document.createElement('canvas');
+  const SCALE=2400/a.w;
+  out.width=Math.round(a.w*SCALE); out.height=Math.round(a.h*SCALE);
+  const octx=out.getContext('2d');
+  octx.scale(SCALE,SCALE);
+  octx.translate(-a.x,-a.y);
+  layers.forEach(ly=>{
+    const cx=a.x+ly.x*a.w, cy=a.y+ly.y*a.h;
+    octx.save();
+    octx.translate(cx,cy);octx.rotate(ly.rot||0);
+    if(ly.type==='text'){
+      octx.fillStyle=ly.color;
+      octx.font=`${ly.size*ly.scale}px ${fam()}`;
+      octx.textAlign='center';octx.textBaseline='middle';
+      octx.fillText(ly.text,0,0);
+    }else if(ly.type==='image'&&ly.img){
+      const w=ly.w*ly.scale,h=ly.h*ly.scale;
+      octx.drawImage(ly.img,-w/2,-h/2,w,h);
+    }
+    octx.restore();
+  });
+  out.toBlob(blob=>{
+    const url=URL.createObjectURL(blob);
+    const a2=document.createElement('a');
+    a2.href=url;a2.download='design.png';a2.click();
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+  });
+}
+
+// ---- Fourthwall publish (wired up for when API credentials are available) ----
+const FW_API='https://api.fourthwall.com/open-api/v1.0';
+function fwAuthHeader(u,p){ return 'Basic '+btoa(u+':'+p); }
+function setStatus(msg,ok){
+  const el=document.getElementById('fwStatus');
+  el.textContent=msg; el.className='statusline '+(ok===true?'ok':ok===false?'bad':'');
+}
+async function publishToFourthwall(){
+  const user=document.getElementById('fwUser').value.trim();
+  const pass=document.getElementById('fwPass').value;
+  const name=document.getElementById('fwName').value.trim()||'Untitled design';
+  if(!user||!pass){setStatus('Enter your Fourthwall API username and password first (Settings → For Developers in your store admin).',false);return;}
+  if(!layers.length){setStatus('Add something to the design first.',false);return;}
+  localStorage.setItem('fw_user',user);
+  const btn=document.getElementById('fwBtn'); btn.disabled=true;
+  try{
+    setStatus('Exporting artwork…');
+    const a=printArea();
+    const out=document.createElement('canvas');
+    const SCALE=2400/a.w;
+    out.width=Math.round(a.w*SCALE); out.height=Math.round(a.h*SCALE);
+    const octx=out.getContext('2d'); octx.scale(SCALE,SCALE); octx.translate(-a.x,-a.y);
+    layers.forEach(ly=>{
+      const cx=a.x+ly.x*a.w, cy=a.y+ly.y*a.h;
+      octx.save(); octx.translate(cx,cy); octx.rotate(ly.rot||0);
+      if(ly.type==='text'){
+        octx.fillStyle=ly.color; octx.font=`${ly.size*ly.scale}px ${fam()}`;
+        octx.textAlign='center'; octx.textBaseline='middle'; octx.fillText(ly.text,0,0);
+      }else if(ly.type==='image'&&ly.img){
+        const w=ly.w*ly.scale,h=ly.h*ly.scale; octx.drawImage(ly.img,-w/2,-h/2,w,h);
+      }
+      octx.restore();
+    });
+    const blob=await new Promise(res=>out.toBlob(res,'image/png'));
+
+    setStatus('Requesting upload URL…');
+    const upReq=await fetch(FW_API+'/media/upload-url',{
+      method:'POST',
+      headers:{'Authorization':fwAuthHeader(user,pass),'Content-Type':'application/json'},
+      body:JSON.stringify({fileName:'design.png',contentType:'image/png',size:blob.size})
+    });
+    if(!upReq.ok) throw new Error('upload-url request failed: '+upReq.status+' '+await upReq.text());
+    const {uploadUrl,fileUrl}=await upReq.json();
+
+    setStatus('Uploading artwork…');
+    const putRes=await fetch(uploadUrl,{
+      method:'PUT',
+      headers:{'Content-Type':'image/png','x-goog-content-length-range':'0,'+blob.size},
+      body:blob
+    });
+    if(!putRes.ok) throw new Error('image upload failed: '+putRes.status);
+
+    setStatus('Registering image…');
+    const img=new Image(); const imgLoaded=new Promise(res=>{img.onload=res;}); img.src=URL.createObjectURL(blob); await imgLoaded;
+    const regRes=await fetch(FW_API+'/media/images',{
+      method:'POST',
+      headers:{'Authorization':fwAuthHeader(user,pass),'Content-Type':'application/json'},
+      body:JSON.stringify({fileUrl,width:img.naturalWidth,height:img.naturalHeight})
+    });
+    if(!regRes.ok) throw new Error('image registration failed: '+regRes.status+' '+await regRes.text());
+    const {id:imageId}=await regRes.json();
+
+    setStatus('Looking up product templates…');
+    const tplRes=await fetch(FW_API+'/product-templates',{headers:{'Authorization':fwAuthHeader(user,pass)}});
+    if(!tplRes.ok) throw new Error('product-templates request failed: '+tplRes.status);
+    const templates=await tplRes.json();
+    const wantKind=document.getElementById('fwTemplate').value;
+    const guess=(templates.results||templates||[]).find(t=>(t.name||'').toLowerCase().includes(wantKind==='tee'?'tee':wantKind));
+    if(!guess) throw new Error('Could not find a matching product template automatically — check the template list and tell me the exact name/id to use.');
+
+    setStatus('Creating product…');
+    const prodRes=await fetch(FW_API+'/products',{
+      method:'POST',
+      headers:{'Authorization':fwAuthHeader(user,pass),'Content-Type':'application/json'},
+      body:JSON.stringify({
+        type:'design',
+        productTemplateId:guess.id,
+        name,
+        description:name,
+        publishOnCreate:document.getElementById('fwPublish').checked,
+        regions:[{region:'front',imageId,placementStrategy:'AUTO'}]
+      })
+    });
+    if(!prodRes.ok) throw new Error('product creation failed: '+prodRes.status+' '+await prodRes.text());
+    const prod=await prodRes.json();
+    setStatus('Published! Product ID '+prod.productId,true);
+  }catch(err){
+    setStatus('Could not publish: '+err.message+' — if this is a CORS/network error, tell me and I\'ll add a small relay to get around the browser restriction.',false);
+  }finally{
+    btn.disabled=false;
+  }
+}
+(function init(){
+  const savedUser=localStorage.getItem('fw_user'); if(savedUser)document.getElementById('fwUser').value=savedUser;
+  buildSwatches(); renderStage();
+})();
+</script>
+</body>
+</html>
