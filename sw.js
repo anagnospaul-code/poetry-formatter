@@ -1,4 +1,4 @@
-const CACHE = 'poetry-formatter-v6';
+const CACHE = 'poetry-formatter-v7';
 const CORE = ['index.html', 'cover.html', 'merch.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'lora-fonts.js'];
 
 self.addEventListener('install', e => {
