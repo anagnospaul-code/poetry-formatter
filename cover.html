@@ -158,10 +158,11 @@ label.chk input{width:auto}
         <input type="file" id="accent" accept="image/*" style="display:none" onchange="loadAccent(this.files[0])">
         <div id="accentPosRow" style="display:none">
           <div class="row">
-            <div class="fld"><label style="margin-bottom:2px">Zoom <span id="accentZoomV">100%</span></label><input type="range" id="accentZoom" min="100" max="800" value="100"></div>
+            <div class="fld"><label style="margin-bottom:2px">Size <span id="accentZoomV">100%</span></label><input type="range" id="accentZoom" min="25" max="800" value="100"></div>
             <div class="fld"><label style="margin-bottom:2px">Pan left / right</label><input type="range" id="accentPanX" min="-50" max="50" value="0"></div>
             <div class="fld"><label style="margin-bottom:2px">Pan up / down</label><input type="range" id="accentPanY" min="-50" max="50" value="0"></div>
           </div>
+          <div class="hint">Size 100% shows the whole image as large as it fits with no cropping. Drag it below 100% to make it smaller, or above to make it bigger. Pan slides it around once it's not centered.</div>
           <button class="ghost" onclick="resetAccentPos()">Reset position</button>
           <button class="ghost" onclick="removeAccent()">Remove image</button>
         </div>
