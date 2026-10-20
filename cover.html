@@ -501,6 +501,15 @@ function renderChecks(d){
     add('Full-wrap cover size',`${d.coverW.toFixed(3)}″ × ${d.coverH.toFixed(3)}″`,'ok');
     add('Bleed',`${BLEED}″ on top, bottom &amp; outside edges`,'ok');
   }
+  if(artImg){
+    const {edge}=edgeVals(d);
+    const areaW=artScope==='full'?d.coverW:(d.tw+edge), areaH=artScope==='full'?d.coverH:d.th;
+    const zoom=($('artZoom')?parseFloat($('artZoom').value):100)/100||1;
+    const dpi=Math.min(artImg.width/areaW,artImg.height/areaH)/zoom;
+    const cls=dpi>=250?'ok':dpi>=120?'warn':'bad';
+    const note=dpi>=250?'sharp at this size':dpi>=120?'a little soft, but usable':'will look blurry/pixelated printed — zoom out or use a higher-res photo';
+    add('Image resolution at this crop',`≈${Math.round(dpi)} dpi — ${note}`,cls);
+  }
   add('Spine text',d.pages>=SPINE_TEXT_MIN_PAGES?'shown — book qualifies':'hidden — KDP needs 79+ pages',
       d.pages>=SPINE_TEXT_MIN_PAGES?'ok':'warn');
   add('Barcode area','kept clear, bottom-right of back cover','ok');
