@@ -188,6 +188,14 @@ label.chk input{width:auto}
       <div class="fld" id="blurbFld"><label>Back-cover blurb</label><textarea id="cBlurb">A gathering of voices from every corner of the world — the poems Neopoet's own writers chose to carry across the year.</textarea></div>
       <label class="chk" id="spineTextFld"><input type="checkbox" id="spineText" checked> Title on the spine (KDP only prints spine text past 79 pages)</label>
       <label class="chk"><input type="checkbox" id="showGuides" checked> Show bleed / safety / barcode guides (preview only — not printed)</label>
+      <div class="fld"><label>Move the text</label>
+        <div class="row">
+          <div class="fld"><label style="margin-bottom:2px">Front title/author</label><input type="range" id="titlePos" min="-50" max="50" value="0"></div>
+          <div class="fld" id="blurbPosFld"><label style="margin-bottom:2px">Back blurb</label><input type="range" id="blurbPos" min="-50" max="50" value="0"></div>
+          <div class="fld" id="spinePosFld"><label style="margin-bottom:2px">Spine text</label><input type="range" id="spinePos" min="-50" max="50" value="0"></div>
+        </div>
+        <div class="hint">Each slider nudges that text up or down. Middle is the default position.</div>
+      </div>
     </div>
 
     <div class="card">
@@ -278,6 +286,8 @@ function setBinding(){
   $('paperFld').style.display=b==='paperback'?'block':'none';
   $('blurbFld').style.display=b==='ebook'?'none':'block';
   $('spineTextFld').style.display=b==='ebook'?'none':'flex';
+  $('blurbPosFld').style.display=b==='ebook'?'none':'block';
+  $('spinePosFld').style.display=b==='ebook'?'none':'block';
   $('artRow').style.display=(artImg&&b!=='ebook')?'block':$('artRow').style.display;
   $('artFitRow').style.display=(artImg&&b!=='ebook')?'block':$('artFitRow').style.display;
   $('accentRow').style.display=(b!=='ebook')?'block':'none';
@@ -372,24 +382,28 @@ function renderPreview(){
   const serif='"Lora","Times New Roman",Times,serif';
   applyTextShadow(c,I,tc);
 
+  const titleOff=I(($('titlePos')?+$('titlePos').value:0)/50*d.th*.25);
+  const blurbOff=I(($('blurbPos')?+$('blurbPos').value:0)/50*d.th*.25);
+  const spineOff=I(($('spinePos')?+$('spinePos').value:0)/50*d.spine*4);
+
   const liveW=I(d.tw)-I(edge+safety)-I(hinge);
   let fy=I(d.th*.4);
   c.font=`bold ${I(.34)}px ${serif}`;
-  fy=drawWrapped(c,$('cTitle').value,frontX+I(d.tw/2)+I(hinge/2),I(d.th*.38),liveW,I(.4));
+  fy=drawWrapped(c,$('cTitle').value,frontX+I(d.tw/2)+I(hinge/2),I(d.th*.38)+titleOff,liveW,I(.4));
   if($('cSub').value.trim()){
     c.font=`italic ${I(.17)}px ${serif}`;
     fy=drawWrapped(c,$('cSub').value,frontX+I(d.tw/2)+I(hinge/2),fy+I(.08),liveW,I(.22));
   }
   c.font=`${I(.16)}px ${serif}`;
-  drawWrapped(c,$('cAuthor').value,frontX+I(d.tw/2)+I(hinge/2),I(d.th*.86),liveW,I(.2));
+  drawWrapped(c,$('cAuthor').value,frontX+I(d.tw/2)+I(hinge/2),I(d.th*.86)+titleOff,liveW,I(.2));
 
   const backLiveX=I(edge+safety), backLiveW=I(d.tw)-I(edge+safety)-I(hinge)-I(safety);
   c.textAlign='left'; c.font=`${I(.145)}px ${serif}`;
-  drawWrappedLeft(c,$('cBlurb').value,backLiveX,I(TOPStart(d,edge,safety)),backLiveW,I(.22));
+  drawWrappedLeft(c,$('cBlurb').value,backLiveX,I(TOPStart(d,edge,safety))+blurbOff,backLiveW,I(.22));
 
   if($('spineText').checked && d.pages>=SPINE_TEXT_MIN_PAGES && d.spine>.12){
     c.save();
-    c.translate(spineX+spineW/2, cv.height/2);
+    c.translate(spineX+spineW/2, cv.height/2+spineOff);
     c.rotate(-Math.PI/2);
     c.textAlign='center'; c.fillStyle=tc;
     c.font=`bold ${I(Math.min(.16,d.spine*.55))}px ${serif}`;
@@ -670,7 +684,8 @@ function fillTrims(){
 }
 fillTrims();
 ['trim','pages','paper','textColor','cTitle','cSub','cAuthor','cBlurb','spineText','showGuides','bgColor','artScope',
- 'textShadow','artZoom','artPanX','artPanY','artFit','accentZoom','accentPanX','accentPanY']
+ 'textShadow','artZoom','artPanX','artPanY','artFit','accentZoom','accentPanX','accentPanY',
+ 'titlePos','blurbPos','spinePos']
   .forEach(id=>{
     const el=$(id);
     el.addEventListener(el.type==='checkbox'?'change':'input',()=>renderPreview());
