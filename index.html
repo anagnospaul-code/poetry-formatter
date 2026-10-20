@@ -327,6 +327,12 @@ function addManualSection(){
   renderPreview();
 }
 function removeManualPoem(i){ manualPoems.splice(i,1); renderPreview(); }
+function moveManualPoem(i,dir){
+  const j=i+dir;
+  if(j<0||j>=manualPoems.length)return;
+  [manualPoems[i],manualPoems[j]]=[manualPoems[j],manualPoems[i]];
+  renderPreview();
+}
 
 // ── Parsing ────────────────────────────────────────────────────────────
 function parsePoems(raw){
@@ -927,14 +933,21 @@ function renderFoundList(entries){
   list.style.display='block';
   let n=0;
   list.innerHTML=entries.map((e,i)=>{
+    let mv='';
+    if(inputMode==='one'){
+      const up=i>0?`onclick="moveManualPoem(${i},-1)"`:'disabled';
+      const dn=i<entries.length-1?`onclick="moveManualPoem(${i},1)"`:'disabled';
+      mv=`<button class="frm" title="Move up" ${up}>↑</button>`+
+         `<button class="frm" title="Move down" ${dn}>↓</button>`;
+    }
     const rm=inputMode==='one'?`<button class="frm" title="Remove" onclick="removeManualPoem(${i})">✕</button>`:'';
     if(e.kind==='section')
       return `<li style="font-weight:600;background:var(--accent-soft)">`+
-        `<span class="ftext">§ ${escapeHtml(e.title)}</span>${rm}</li>`;
+        `<span class="ftext">§ ${escapeHtml(e.title)}</span>${mv}${rm}</li>`;
     n++;
     return `<li><span class="fnum">${n}.</span><span class="ftext">${escapeHtml(e.title)}`+
       ((e.author||e.username)?` <span class="fauthor">— ${escapeHtml(bylineText(e.author,e.username,e.location))}</span>`:'')+
-      `</span>${rm}</li>`;
+      `</span>${mv}${rm}</li>`;
   }).join('');
 }
 function turn(d){spreadAt=Math.max(0,spreadAt+d);renderPreview();}
