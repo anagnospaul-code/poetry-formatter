@@ -479,7 +479,10 @@ function drawCover(c,img,x,y,w,h){
   const s=Math.max(w/img.width,h/img.height)*zoom;
   const iw=img.width*s, ih=img.height*s;
   const dx=x-(iw-w)*(0.5+panX), dy=y-(ih-h)*(0.5+panY);
+  c.save();
+  c.beginPath(); c.rect(x,y,w,h); c.clip();
   c.drawImage(img,dx,dy,iw,ih);
+  c.restore();
 }
 function renderChecks(d){
   const rows=[];
