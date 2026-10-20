@@ -1,5 +1,5 @@
-const CACHE = 'poetry-formatter-v2';
-const CORE = ['index.html', 'cover.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'lora-fonts.js'];
+const CACHE = 'poetry-formatter-v3';
+const CORE = ['index.html', 'cover.html', 'merch.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'lora-fonts.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)));
