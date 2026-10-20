@@ -138,10 +138,11 @@ label.chk input{width:auto}
       <div class="fld" id="artPosRow" style="display:none">
         <label>Position the image — zoom in and drag it until it's framed the way you want</label>
         <div class="row">
-          <div class="fld"><label style="margin-bottom:2px">Zoom</label><input type="range" id="artZoom" min="100" max="300" value="100"></div>
+          <div class="fld"><label style="margin-bottom:2px">Zoom <span id="artZoomV">100%</span></label><input type="range" id="artZoom" min="100" max="800" value="100"></div>
           <div class="fld"><label style="margin-bottom:2px">Pan left / right</label><input type="range" id="artPanX" min="-50" max="50" value="0"></div>
           <div class="fld"><label style="margin-bottom:2px">Pan up / down</label><input type="range" id="artPanY" min="-50" max="50" value="0"></div>
         </div>
+        <div class="hint">Zoom controls how much of the photo shows — all the way left is the smallest crop that still fills the area with no gaps. Pan then slides that crop around once you've zoomed in.</div>
         <button class="ghost" onclick="resetArtPos()">Reset position</button>
       </div>
       <div class="fld"><label>Text color</label>
@@ -471,6 +472,7 @@ function applyTextShadowPx(c,tc,blur,off){
 function applyTextShadow(c,I,tc){ applyTextShadowPx(c,tc,I(.035),I(.012)); }
 function drawCover(c,img,x,y,w,h){
   const zEl=$('artZoom'), xEl=$('artPanX'), yEl=$('artPanY');
+  if(zEl&&$('artZoomV'))$('artZoomV').textContent=zEl.value+'%';
   const zoom=zEl?(parseFloat(zEl.value)||100)/100:1;
   const panX=xEl?(parseFloat(xEl.value)||0)/100:0;
   const panY=yEl?(parseFloat(yEl.value)||0)/100:0;
