@@ -190,7 +190,8 @@ label.chk input{width:auto}
       <label class="chk"><input type="checkbox" id="showGuides" checked> Show bleed / safety / barcode guides (preview only — not printed)</label>
       <div class="fld"><label>Move the text</label>
         <div class="row">
-          <div class="fld"><label style="margin-bottom:2px">Front title/author</label><input type="range" id="titlePos" min="-50" max="50" value="0"></div>
+          <div class="fld"><label style="margin-bottom:2px">Front title</label><input type="range" id="titlePos" min="-50" max="50" value="0"></div>
+          <div class="fld"><label style="margin-bottom:2px">Front author</label><input type="range" id="authorPos" min="-50" max="50" value="0"></div>
           <div class="fld" id="blurbPosFld"><label style="margin-bottom:2px">Back blurb</label><input type="range" id="blurbPos" min="-50" max="50" value="0"></div>
           <div class="fld" id="spinePosFld"><label style="margin-bottom:2px">Spine text</label><input type="range" id="spinePos" min="-50" max="50" value="0"></div>
         </div>
@@ -383,6 +384,7 @@ function renderPreview(){
   applyTextShadow(c,I,tc);
 
   const titleOff=I(($('titlePos')?+$('titlePos').value:0)/50*d.th*.25);
+  const authorOff=I(($('authorPos')?+$('authorPos').value:0)/50*d.th*.12);
   const blurbOff=I(($('blurbPos')?+$('blurbPos').value:0)/50*d.th*.25);
   const spineOff=I(($('spinePos')?+$('spinePos').value:0)/50*d.spine*4);
 
@@ -395,7 +397,7 @@ function renderPreview(){
     fy=drawWrapped(c,$('cSub').value,frontX+I(d.tw/2)+I(hinge/2),fy+I(.08),liveW,I(.22));
   }
   c.font=`${I(.16)}px ${serif}`;
-  drawWrapped(c,$('cAuthor').value,frontX+I(d.tw/2)+I(hinge/2),I(d.th*.86)+titleOff,liveW,I(.2));
+  drawWrapped(c,$('cAuthor').value,frontX+I(d.tw/2)+I(hinge/2),I(d.th*.86)+authorOff,liveW,I(.2));
 
   const backLiveX=I(edge+safety), backLiveW=I(d.tw)-I(edge+safety)-I(hinge)-I(safety);
   c.textAlign='left'; c.font=`${I(.145)}px ${serif}`;
@@ -685,7 +687,7 @@ function fillTrims(){
 fillTrims();
 ['trim','pages','paper','textColor','cTitle','cSub','cAuthor','cBlurb','spineText','showGuides','bgColor','artScope',
  'textShadow','artZoom','artPanX','artPanY','artFit','accentZoom','accentPanX','accentPanY',
- 'titlePos','blurbPos','spinePos']
+ 'titlePos','authorPos','blurbPos','spinePos']
   .forEach(id=>{
     const el=$(id);
     el.addEventListener(el.type==='checkbox'?'change':'input',()=>renderPreview());
