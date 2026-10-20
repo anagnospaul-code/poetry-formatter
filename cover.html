@@ -151,6 +151,21 @@ label.chk input{width:auto}
         <div class="hint">Zoom controls how much of the photo shows — all the way left is the smallest crop that still fills the area with no gaps. Pan then slides that crop around once you've zoomed in.</div>
         <button class="ghost" onclick="resetArtPos()">Reset position</button>
       </div>
+      <div class="fld" id="accentRow">
+        <label>Floating image on the front cover (optional)</label>
+        <div class="hint">Use this for a cutout with a transparent background — it always stays on the front cover only, on top of whatever's behind it, even if the background above covers the whole wrap.</div>
+        <button class="ghost" onclick="document.getElementById('accent').click()" id="accentBtn">Add a floating image</button>
+        <input type="file" id="accent" accept="image/*" style="display:none" onchange="loadAccent(this.files[0])">
+        <div id="accentPosRow" style="display:none">
+          <div class="row">
+            <div class="fld"><label style="margin-bottom:2px">Zoom <span id="accentZoomV">100%</span></label><input type="range" id="accentZoom" min="100" max="800" value="100"></div>
+            <div class="fld"><label style="margin-bottom:2px">Pan left / right</label><input type="range" id="accentPanX" min="-50" max="50" value="0"></div>
+            <div class="fld"><label style="margin-bottom:2px">Pan up / down</label><input type="range" id="accentPanY" min="-50" max="50" value="0"></div>
+          </div>
+          <button class="ghost" onclick="resetAccentPos()">Reset position</button>
+          <button class="ghost" onclick="removeAccent()">Remove image</button>
+        </div>
+      </div>
       <div class="fld"><label>Text color</label>
         <div class="swrow">
           <button class="swatch" data-c="#fdfbf6" style="background:#fdfbf6" onclick="setTextColor(this)"></button>
@@ -219,6 +234,7 @@ const EBOOK_W=1600, EBOOK_H=2560;
 
 const $=id=>document.getElementById(id);
 let artImg=null, artScope='full';
+let accentImg=null;
 
 async function saveFile(filename,blob){
   try{
@@ -263,6 +279,7 @@ function setBinding(){
   $('spineTextFld').style.display=b==='ebook'?'none':'flex';
   $('artRow').style.display=(artImg&&b!=='ebook')?'block':$('artRow').style.display;
   $('artFitRow').style.display=(artImg&&b!=='ebook')?'block':$('artFitRow').style.display;
+  $('accentRow').style.display=(b!=='ebook')?'block':'none';
   if(b==='hardcover'){
     fillTrims();
     if(+$('pages').value<HARD_MIN_PAGES)$('pages').value=150;
@@ -303,6 +320,23 @@ function resetArtPos(){
   $('artZoom').value=100; $('artPanX').value=0; $('artPanY').value=0;
   renderPreview();
 }
+function loadAccent(f){
+  if(!f)return;
+  const img=new Image();
+  img.onload=()=>{
+    accentImg=img; $('accentRow').style.display='block'; $('accentPosRow').style.display='block';
+    resetAccentPos(); renderPreview();
+  };
+  img.src=URL.createObjectURL(f);
+}
+function resetAccentPos(){
+  $('accentZoom').value=100; $('accentPanX').value=0; $('accentPanY').value=0;
+  renderPreview();
+}
+function removeAccent(){
+  accentImg=null; $('accentPosRow').style.display='none'; $('accent').value='';
+  renderPreview();
+}
 
 function renderPreview(){
   const d=dims();
@@ -328,6 +362,7 @@ function renderPreview(){
       drawCover(c,artImg,frontX,0,frontW,cv.height);
     }
   }
+  if(accentImg) drawAccent(c,frontX,0,frontW,cv.height);
 
   c.fillStyle='rgba(0,0,0,.12)'; c.fillRect(spineX,0,2,cv.height);
   c.fillRect(frontX,0,2,cv.height);
@@ -477,13 +512,7 @@ function applyTextShadowPx(c,tc,blur,off){
   }
 }
 function applyTextShadow(c,I,tc){ applyTextShadowPx(c,tc,I(.035),I(.012)); }
-function drawCover(c,img,x,y,w,h){
-  const zEl=$('artZoom'), xEl=$('artPanX'), yEl=$('artPanY'), fEl=$('artFit');
-  if(zEl&&$('artZoomV'))$('artZoomV').textContent=zEl.value+'%';
-  const zoom=zEl?(parseFloat(zEl.value)||100)/100:1;
-  const panX=xEl?(parseFloat(xEl.value)||0)/100:0;
-  const panY=yEl?(parseFloat(yEl.value)||0)/100:0;
-  const fit=fEl?fEl.value:'cover';
+function drawImageFit(c,img,x,y,w,h,zoom,panX,panY,fit){
   const s=(fit==='contain'?Math.min(w/img.width,h/img.height):Math.max(w/img.width,h/img.height))*zoom;
   const iw=img.width*s, ih=img.height*s;
   const dx=x-(iw-w)*(0.5+panX), dy=y-(ih-h)*(0.5+panY);
@@ -491,6 +520,24 @@ function drawCover(c,img,x,y,w,h){
   c.beginPath(); c.rect(x,y,w,h); c.clip();
   c.drawImage(img,dx,dy,iw,ih);
   c.restore();
+}
+function drawCover(c,img,x,y,w,h){
+  const zEl=$('artZoom'), xEl=$('artPanX'), yEl=$('artPanY'), fEl=$('artFit');
+  if(zEl&&$('artZoomV'))$('artZoomV').textContent=zEl.value+'%';
+  const zoom=zEl?(parseFloat(zEl.value)||100)/100:1;
+  const panX=xEl?(parseFloat(xEl.value)||0)/100:0;
+  const panY=yEl?(parseFloat(yEl.value)||0)/100:0;
+  const fit=fEl?fEl.value:'cover';
+  drawImageFit(c,img,x,y,w,h,zoom,panX,panY,fit);
+}
+function drawAccent(c,x,y,w,h){
+  if(!accentImg)return;
+  const zEl=$('accentZoom'), xEl=$('accentPanX'), yEl=$('accentPanY');
+  if(zEl&&$('accentZoomV'))$('accentZoomV').textContent=zEl.value+'%';
+  const zoom=zEl?(parseFloat(zEl.value)||100)/100:1;
+  const panX=xEl?(parseFloat(xEl.value)||0)/100:0;
+  const panY=yEl?(parseFloat(yEl.value)||0)/100:0;
+  drawImageFit(c,accentImg,x,y,w,h,zoom,panX,panY,'contain');
 }
 function renderChecks(d){
   const rows=[];
@@ -622,7 +669,7 @@ function fillTrims(){
 }
 fillTrims();
 ['trim','pages','paper','textColor','cTitle','cSub','cAuthor','cBlurb','spineText','showGuides','bgColor','artScope',
- 'textShadow','artZoom','artPanX','artPanY','artFit']
+ 'textShadow','artZoom','artPanX','artPanY','artFit','accentZoom','accentPanX','accentPanY']
   .forEach(id=>{
     const el=$(id);
     el.addEventListener(el.type==='checkbox'?'change':'input',()=>renderPreview());
