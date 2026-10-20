@@ -135,6 +135,12 @@ label.chk input{width:auto}
           <option value="front">Front cover only (back &amp; spine stay the color above)</option>
         </select>
       </div>
+      <div class="fld" id="artFitRow" style="display:none"><label>Image fit</label>
+        <select id="artFit">
+          <option value="cover">Fill the area (may crop the edges of the photo)</option>
+          <option value="contain">Show the whole image, no cropping (good for a cutout with a transparent background)</option>
+        </select>
+      </div>
       <div class="fld" id="artPosRow" style="display:none">
         <label>Position the image — zoom in and drag it until it's framed the way you want</label>
         <div class="row">
@@ -256,6 +262,7 @@ function setBinding(){
   $('blurbFld').style.display=b==='ebook'?'none':'block';
   $('spineTextFld').style.display=b==='ebook'?'none':'flex';
   $('artRow').style.display=(artImg&&b!=='ebook')?'block':$('artRow').style.display;
+  $('artFitRow').style.display=(artImg&&b!=='ebook')?'block':$('artFitRow').style.display;
   if(b==='hardcover'){
     fillTrims();
     if(+$('pages').value<HARD_MIN_PAGES)$('pages').value=150;
@@ -287,7 +294,7 @@ function loadArt(f){
   if(!f)return;
   const img=new Image();
   img.onload=()=>{
-    artImg=img; $('artRow').style.display='block'; $('artPosRow').style.display='block';
+    artImg=img; $('artRow').style.display='block'; $('artFitRow').style.display='block'; $('artPosRow').style.display='block';
     resetArtPos(); renderPreview();
   };
   img.src=URL.createObjectURL(f);
@@ -471,12 +478,13 @@ function applyTextShadowPx(c,tc,blur,off){
 }
 function applyTextShadow(c,I,tc){ applyTextShadowPx(c,tc,I(.035),I(.012)); }
 function drawCover(c,img,x,y,w,h){
-  const zEl=$('artZoom'), xEl=$('artPanX'), yEl=$('artPanY');
+  const zEl=$('artZoom'), xEl=$('artPanX'), yEl=$('artPanY'), fEl=$('artFit');
   if(zEl&&$('artZoomV'))$('artZoomV').textContent=zEl.value+'%';
   const zoom=zEl?(parseFloat(zEl.value)||100)/100:1;
   const panX=xEl?(parseFloat(xEl.value)||0)/100:0;
   const panY=yEl?(parseFloat(yEl.value)||0)/100:0;
-  const s=Math.max(w/img.width,h/img.height)*zoom;
+  const fit=fEl?fEl.value:'cover';
+  const s=(fit==='contain'?Math.min(w/img.width,h/img.height):Math.max(w/img.width,h/img.height))*zoom;
   const iw=img.width*s, ih=img.height*s;
   const dx=x-(iw-w)*(0.5+panX), dy=y-(ih-h)*(0.5+panY);
   c.save();
@@ -614,7 +622,7 @@ function fillTrims(){
 }
 fillTrims();
 ['trim','pages','paper','textColor','cTitle','cSub','cAuthor','cBlurb','spineText','showGuides','bgColor','artScope',
- 'textShadow','artZoom','artPanX','artPanY']
+ 'textShadow','artZoom','artPanX','artPanY','artFit']
   .forEach(id=>{
     const el=$(id);
     el.addEventListener(el.type==='checkbox'?'change':'input',()=>renderPreview());
