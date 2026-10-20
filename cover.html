@@ -135,11 +135,25 @@ label.chk input{width:auto}
           <option value="front">Front cover only (back &amp; spine stay the color above)</option>
         </select>
       </div>
+      <div class="fld" id="artPosRow" style="display:none">
+        <label>Position the image — zoom in and drag it until it's framed the way you want</label>
+        <div class="row">
+          <div class="fld"><label style="margin-bottom:2px">Zoom</label><input type="range" id="artZoom" min="100" max="300" value="100"></div>
+          <div class="fld"><label style="margin-bottom:2px">Pan left / right</label><input type="range" id="artPanX" min="-50" max="50" value="0"></div>
+          <div class="fld"><label style="margin-bottom:2px">Pan up / down</label><input type="range" id="artPanY" min="-50" max="50" value="0"></div>
+        </div>
+        <button class="ghost" onclick="resetArtPos()">Reset position</button>
+      </div>
       <div class="fld"><label>Text color</label>
-        <select id="textColor">
-          <option value="#fdfbf6">Light</option>
-          <option value="#1d1b18">Dark</option>
-        </select>
+        <div class="swrow">
+          <button class="swatch" data-c="#fdfbf6" style="background:#fdfbf6" onclick="setTextColor(this)"></button>
+          <button class="swatch" data-c="#1d1b18" style="background:#1d1b18" onclick="setTextColor(this)"></button>
+          <button class="swatch" data-c="#e8c87a" style="background:#e8c87a" onclick="setTextColor(this)"></button>
+          <button class="swatch" data-c="#c8a96e" style="background:#c8a96e" onclick="setTextColor(this)"></button>
+          <button class="swatch" data-c="#8a6d3b" style="background:#8a6d3b" onclick="setTextColor(this)"></button>
+          <input type="text" id="textColor" value="#fdfbf6" style="width:90px" oninput="renderPreview()">
+        </div>
+        <label class="chk"><input type="checkbox" id="textShadow" checked> Add a soft shadow behind the text — helps it stay readable over a busy photo</label>
       </div>
     </div>
 
@@ -267,11 +281,19 @@ function setBinding(){
 }
 
 function setColor(btn){ $('bgColor').value=btn.dataset.c; renderPreview(); }
+function setTextColor(btn){ $('textColor').value=btn.dataset.c; renderPreview(); }
 function loadArt(f){
   if(!f)return;
   const img=new Image();
-  img.onload=()=>{artImg=img; $('artRow').style.display='block'; renderPreview();};
+  img.onload=()=>{
+    artImg=img; $('artRow').style.display='block'; $('artPosRow').style.display='block';
+    resetArtPos(); renderPreview();
+  };
   img.src=URL.createObjectURL(f);
+}
+function resetArtPos(){
+  $('artZoom').value=100; $('artPanX').value=0; $('artPanY').value=0;
+  renderPreview();
 }
 
 function renderPreview(){
@@ -304,6 +326,7 @@ function renderPreview(){
 
   c.fillStyle=tc; c.textAlign='center';
   const serif='"Lora","Times New Roman",Times,serif';
+  applyTextShadow(c,I,tc);
 
   const liveW=I(d.tw)-I(edge+safety)-I(hinge);
   let fy=I(d.th*.4);
@@ -331,6 +354,7 @@ function renderPreview(){
     c.fillText($('cAuthor').value||'', 0, I(d.spine)*.32);
     c.restore();
   }
+  c.shadowColor='transparent'; c.shadowBlur=0; c.shadowOffsetX=0; c.shadowOffsetY=0;
 
   if($('showGuides').checked){
     c.strokeStyle='rgba(255,60,60,.8)'; c.setLineDash([6,4]); c.lineWidth=1.5;
@@ -366,6 +390,7 @@ function renderEbookPreview(d){
   if(artImg)drawCover(c,artImg,0,0,cv.width,cv.height);
 
   c.fillStyle=tc; c.textAlign='center';
+  applyTextShadowPx(c,tc,cv.width*.0028,cv.width*.001);
   const liveW=cv.width*.82;
   let fy=cv.height*.4;
   c.font=`bold ${cv.width*.1}px ${serif}`;
@@ -416,10 +441,43 @@ function drawWrappedLeft(c,text,x,y,maxW,lead){
   });
   return yy;
 }
+function shadowHex(hex){
+  const h=(hex||'#000').replace('#','');
+  const r=parseInt(h.substring(0,2),16)||0, g=parseInt(h.substring(2,4),16)||0, b=parseInt(h.substring(4,6),16)||0;
+  const lum=(0.299*r+0.587*g+0.114*b)/255;
+  return lum>0.5?'rgba(0,0,0,.6)':'rgba(255,255,255,.6)';
+}
+function shadowRgb(hex){
+  const h=(hex||'#000').replace('#','');
+  const r=parseInt(h.substring(0,2),16)||0, g=parseInt(h.substring(2,4),16)||0, b=parseInt(h.substring(4,6),16)||0;
+  const lum=(0.299*r+0.587*g+0.114*b)/255;
+  return lum>0.5?'#000000':'#ffffff';
+}
+function pdfText(doc,lines,x,y,opts,color){
+  if($('textShadow')&&$('textShadow').checked){
+    doc.setTextColor(shadowRgb(color));
+    doc.text(lines,x+.018,y+.018,opts);
+  }
+  doc.setTextColor(color);
+  doc.text(lines,x,y,opts);
+}
+function applyTextShadowPx(c,tc,blur,off){
+  if($('textShadow')&&$('textShadow').checked){
+    c.shadowColor=shadowHex(tc); c.shadowBlur=blur; c.shadowOffsetX=off; c.shadowOffsetY=off;
+  }else{
+    c.shadowColor='transparent'; c.shadowBlur=0; c.shadowOffsetX=0; c.shadowOffsetY=0;
+  }
+}
+function applyTextShadow(c,I,tc){ applyTextShadowPx(c,tc,I(.035),I(.012)); }
 function drawCover(c,img,x,y,w,h){
-  const s=Math.max(w/img.width,h/img.height);
+  const zEl=$('artZoom'), xEl=$('artPanX'), yEl=$('artPanY');
+  const zoom=zEl?(parseFloat(zEl.value)||100)/100:1;
+  const panX=xEl?(parseFloat(xEl.value)||0)/100:0;
+  const panY=yEl?(parseFloat(yEl.value)||0)/100:0;
+  const s=Math.max(w/img.width,h/img.height)*zoom;
   const iw=img.width*s, ih=img.height*s;
-  c.drawImage(img,x+(w-iw)/2,y+(h-ih)/2,iw,ih);
+  const dx=x-(iw-w)*(0.5+panX), dy=y-(ih-h)*(0.5+panY);
+  c.drawImage(img,dx,dy,iw,ih);
 }
 function renderChecks(d){
   const rows=[];
@@ -461,6 +519,7 @@ async function buildEbookJPEG(d){
   c.fillStyle=bg; c.fillRect(0,0,cv.width,cv.height);
   if(artImg)drawCover(c,artImg,0,0,cv.width,cv.height);
   c.fillStyle=tc; c.textAlign='center';
+  applyTextShadowPx(c,tc,cv.width*.0028,cv.width*.001);
   const liveW=cv.width*.82;
   let fy=cv.height*.4;
   c.font=`bold ${cv.width*.1}px ${serif}`;
@@ -494,34 +553,33 @@ async function buildPDF(d){
     doc.addImage(cv.toDataURL('image/jpeg',.92),'JPEG',0,0,d.coverW,d.coverH);
   }
 
-  doc.setTextColor(tc);
   const serif='lora';
   doc.setFont(serif,'bold'); doc.setFontSize(26);
   let fy=d.th*.38;
   const liveW=d.tw-edge-safety-hinge;
   const titleLines=doc.splitTextToSize($('cTitle').value,liveW);
-  doc.text(titleLines,frontX+d.tw/2+hinge/2,fy,{align:'center'});
+  pdfText(doc,titleLines,frontX+d.tw/2+hinge/2,fy,{align:'center'},tc);
   fy+=titleLines.length*.34+.1;
   if($('cSub').value.trim()){
     doc.setFont(serif,'italic'); doc.setFontSize(13);
     const subLines=doc.splitTextToSize($('cSub').value,liveW);
-    doc.text(subLines,frontX+d.tw/2+hinge/2,fy,{align:'center'});
+    pdfText(doc,subLines,frontX+d.tw/2+hinge/2,fy,{align:'center'},tc);
     fy+=subLines.length*.2;
   }
   doc.setFont(serif,'normal'); doc.setFontSize(12);
-  doc.text($('cAuthor').value,frontX+d.tw/2+hinge/2,d.th*.86,{align:'center'});
+  pdfText(doc,$('cAuthor').value,frontX+d.tw/2+hinge/2,d.th*.86,{align:'center'},tc);
 
   doc.setFont(serif,'normal'); doc.setFontSize(11);
   const blurbW=d.tw-edge-safety-hinge-safety;
   const blurbLines=doc.splitTextToSize($('cBlurb').value,blurbW);
-  doc.text(blurbLines,edge+safety,TOPStart(d,edge,safety),{maxWidth:blurbW});
+  pdfText(doc,blurbLines,edge+safety,TOPStart(d,edge,safety),{maxWidth:blurbW},tc);
 
   if($('spineText').checked && d.pages>=SPINE_TEXT_MIN_PAGES && d.spine>.12){
     doc.setFont(serif,'bold'); doc.setFontSize(Math.min(12,d.spine*40));
-    doc.text(($('cTitle').value||'').slice(0,40), spineX+d.spine/2, d.th/2-.05,
-      {align:'center',angle:90});
+    pdfText(doc,($('cTitle').value||'').slice(0,40), spineX+d.spine/2, d.th/2-.05,
+      {align:'center',angle:90},tc);
     doc.setFont(serif,'normal'); doc.setFontSize(Math.min(8,d.spine*28));
-    doc.text($('cAuthor').value||'', spineX+d.spine/2, d.th/2+.3, {align:'center',angle:90});
+    pdfText(doc,$('cAuthor').value||'', spineX+d.spine/2, d.th/2+.3, {align:'center',angle:90},tc);
   }
 
   const safe=($('cTitle').value||'cover').replace(/[^\w\s-]/g,'').trim().replace(/\s+/g,'-').toLowerCase();
@@ -541,7 +599,8 @@ function fillTrims(){
   if([...sel.options].some(o=>o.value===prevVal))sel.value=prevVal;
 }
 fillTrims();
-['trim','pages','paper','textColor','cTitle','cSub','cAuthor','cBlurb','spineText','showGuides','bgColor','artScope']
+['trim','pages','paper','textColor','cTitle','cSub','cAuthor','cBlurb','spineText','showGuides','bgColor','artScope',
+ 'textShadow','artZoom','artPanX','artPanY']
   .forEach(id=>{
     const el=$(id);
     el.addEventListener(el.type==='checkbox'?'change':'input',()=>renderPreview());
