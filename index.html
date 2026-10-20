@@ -876,7 +876,6 @@ function drawPage(cv,page,idx,b){
     c.font=`${I(b.fs/72)}px ${fam}`;
     page.lines.forEach(ln=>{
       if(!ln.trim()){
-        if(page.ornament!=='none')drawOrnamentCanvas(c,left+colW/2,y-lead*.32,'dots',I);
         y+=lead;return;
       }
       c.fillText(ln,left,y);
@@ -1098,7 +1097,6 @@ async function buildPDF(){
       doc.setFont(fontName,'normal');doc.setFontSize(b.fs);
       page.lines.forEach(ln=>{
         if(!ln.trim()){
-          if(page.ornament!=='none')drawOrnamentPDF(doc,left+colW/2,y-lead*.32,'dots');
           y+=lead;return;
         }
         doc.text(ln,left,y,{maxWidth:colW});
