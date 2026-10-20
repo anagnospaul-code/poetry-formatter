@@ -990,6 +990,7 @@ function renderPreview(){
   $('plabel').textContent=`${b.tw}″ × ${b.th}″ · gutter ${b.gutter}″ · outside ${OUTER}″`;
   renderChecks(b);
   renderFoundList(b.poems);
+  saveState();
 }
 function renderFoundList(entries){
   const list=$('foundList');
@@ -1505,13 +1506,48 @@ function buildLocationList(){
 }
 buildLocationList();
 
+// Autosave: everything you've entered (poems, book details, the pasted
+// document) is kept in this browser's local storage, so closing the tab,
+// reopening the app, or an update to the app itself doesn't lose your
+// work. It never leaves your device.
+const SAVE_FIELDS=['src','trim','fsize','face','bTitle','bAuthor','bYear','optToc','optRight','optNums','ornament','bISBN','bDedication','optHeaders'];
+const STORAGE_KEY='poetryFormatterState_v1';
+function saveState(){
+  try{
+    const fields={};
+    SAVE_FIELDS.forEach(id=>{
+      const el=$(id);
+      if(!el)return;
+      fields[id]=el.type==='checkbox'?el.checked:el.value;
+    });
+    localStorage.setItem(STORAGE_KEY,JSON.stringify({inputMode,manualPoems,fields}));
+  }catch(e){ console.warn('autosave unavailable:',e); }
+}
+function loadState(){
+  try{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(!raw)return;
+    const state=JSON.parse(raw);
+    if(Array.isArray(state.manualPoems))manualPoems=state.manualPoems;
+    if(state.inputMode==='one'||state.inputMode==='all')inputMode=state.inputMode;
+    if(state.fields){
+      SAVE_FIELDS.forEach(id=>{
+        const el=$(id);
+        if(!el||!(id in state.fields))return;
+        if(el.type==='checkbox')el.checked=!!state.fields[id];
+        else el.value=state.fields[id];
+      });
+    }
+  }catch(e){ console.warn('could not restore saved work:',e); }
+}
+
 fillTrims();
-['src','trim','fsize','face','bTitle','bAuthor','bYear','optToc','optRight','optNums','ornament',
- 'bISBN','bDedication','optHeaders']
-  .forEach(id=>{
-    const el=$(id);
-    el.addEventListener(el.type==='checkbox'?'change':'input',()=>renderPreview());
-  });
+loadState();
+setMode(inputMode);
+SAVE_FIELDS.forEach(id=>{
+  const el=$(id);
+  el.addEventListener(el.type==='checkbox'?'change':'input',()=>renderPreview());
+});
 renderPreview();
 
 if('serviceWorker' in navigator){
