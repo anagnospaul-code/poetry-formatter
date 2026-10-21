@@ -381,18 +381,8 @@ function loadTemplate(){
   img.src='assets/globe-default.png';
 }
 
-function renderPreview(){
-  const d=dims();
-  if(d.binding==='ebook'){ renderEbookPreview(d); return; }
-  artScope=$('artScope').value;
-  const DPI=110;
-  const cv=$('cv');
-  cv.width=Math.round(d.coverW*DPI); cv.height=Math.round(d.coverH*DPI);
-  const c=cv.getContext('2d');
-  const I=v=>v*DPI;
+function renderCoverArt(c,cv,I,d,edge,safety,hinge){
   const bg=$('bgColor').value, tc=$('textColor').value;
-  const {edge,safety,hinge}=edgeVals(d);
-
   const backX=0, backW=I(edge+d.tw);
   const spineX=backW, spineW=I(d.spine);
   const frontX=spineX+spineW, frontW=I(d.tw+edge);
@@ -451,6 +441,19 @@ function renderPreview(){
     c.restore();
   }
   c.shadowColor='transparent'; c.shadowBlur=0; c.shadowOffsetX=0; c.shadowOffsetY=0;
+  return {backX,backW,spineX,spineW,frontX,frontW};
+}
+function renderPreview(){
+  const d=dims();
+  if(d.binding==='ebook'){ renderEbookPreview(d); return; }
+  artScope=$('artScope').value;
+  const DPI=110;
+  const cv=$('cv');
+  cv.width=Math.round(d.coverW*DPI); cv.height=Math.round(d.coverH*DPI);
+  const c=cv.getContext('2d');
+  const I=v=>v*DPI;
+  const {edge,safety,hinge}=edgeVals(d);
+  const {backX,backW,spineX,spineW,frontX,frontW}=renderCoverArt(c,cv,I,d,edge,safety,hinge);
 
   if($('showGuides').checked){
     c.strokeStyle='rgba(255,60,60,.8)'; c.setLineDash([6,4]); c.lineWidth=1.5;
@@ -572,7 +575,7 @@ function drawGoldTitle(c,text,cx,y,maxW,lead,align,tc,I,spacingFactor){
   const family='"Cinzel","Lora","Times New Roman",Times,serif';
   const weight=700;
   const bigPx=I(.38), smallPx=bigPx*0.66;
-  const tracking=bigPx*0.05+I(spacingFactor||0);
+  const tracking=bigPx*0.20+I(spacingFactor||0);
   const forced=(text||'').toUpperCase().split(/\n/);
   let lines=[];
   forced.forEach(para=>{
@@ -759,49 +762,19 @@ async function buildEbookJPEG(d){
 async function buildPDF(d){
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({unit:'in',format:[d.coverW,d.coverH],orientation:'landscape',compress:true});
-  if(typeof registerLoraFont==='function')registerLoraFont(doc);
-  const bg=$('bgColor').value, tc=$('textColor').value;
-  doc.setFillColor(bg); doc.rect(0,0,d.coverW,d.coverH,'F');
   const {edge,safety,hinge}=edgeVals(d);
 
-  const backW=edge+d.tw, spineX=backW, frontX=spineX+d.spine;
-  if(artImg){
-    const cv=document.createElement('canvas');
-    const DPI=200; cv.width=Math.round(d.coverW*DPI); cv.height=Math.round(d.coverH*DPI);
-    const cx=cv.getContext('2d');
-    if(artScope==='full'){drawCover(cx,artImg,0,0,cv.width,cv.height);}
-    else{drawCover(cx,artImg,frontX*DPI,0,(d.tw+edge)*DPI,cv.height);}
-    doc.addImage(cv.toDataURL('image/jpeg',.92),'JPEG',0,0,d.coverW,d.coverH);
-  }
-
-  const serif='lora';
-  doc.setFont(serif,'bold'); doc.setFontSize(26);
-  let fy=d.th*.38;
-  const liveW=d.tw-edge-safety-hinge;
-  const titleLines=doc.splitTextToSize($('cTitle').value,liveW);
-  pdfText(doc,titleLines,frontX+d.tw/2+hinge/2,fy,{align:'center'},tc);
-  fy+=titleLines.length*.34+.1;
-  if($('cSub').value.trim()){
-    doc.setFont(serif,'italic'); doc.setFontSize(13);
-    const subLines=doc.splitTextToSize($('cSub').value,liveW);
-    pdfText(doc,subLines,frontX+d.tw/2+hinge/2,fy,{align:'center'},tc);
-    fy+=subLines.length*.2;
-  }
-  doc.setFont(serif,'normal'); doc.setFontSize(12);
-  pdfText(doc,$('cAuthor').value,frontX+d.tw/2+hinge/2,d.th*.86,{align:'center'},tc);
-
-  doc.setFont(serif,'normal'); doc.setFontSize(11);
-  const blurbW=d.tw-edge-safety-hinge-safety;
-  const blurbLines=doc.splitTextToSize($('cBlurb').value,blurbW);
-  pdfText(doc,blurbLines,edge+safety,TOPStart(d,edge,safety),{maxWidth:blurbW},tc);
-
-  if($('spineText').checked && d.pages>=SPINE_TEXT_MIN_PAGES && d.spine>.12){
-    doc.setFont(serif,'bold'); doc.setFontSize(Math.min(12,d.spine*40));
-    pdfText(doc,($('cTitle').value||'').slice(0,40), spineX+d.spine/2, d.th/2-.05,
-      {align:'center',angle:90},tc);
-    doc.setFont(serif,'normal'); doc.setFontSize(Math.min(8,d.spine*28));
-    pdfText(doc,$('cAuthor').value||'', spineX+d.spine/2, d.th/2+.3, {align:'center',angle:90},tc);
-  }
+  // Rasterize the exact same artwork shown in the preview — background,
+  // floating image, and all text — at print resolution, so the download
+  // always matches what's on screen.
+  if(document.fonts&&document.fonts.ready) await document.fonts.ready;
+  const DPI=300;
+  const cv=document.createElement('canvas');
+  cv.width=Math.round(d.coverW*DPI); cv.height=Math.round(d.coverH*DPI);
+  const c=cv.getContext('2d');
+  const I=v=>v*DPI;
+  renderCoverArt(c,cv,I,d,edge,safety,hinge);
+  doc.addImage(cv.toDataURL('image/jpeg',.95),'JPEG',0,0,d.coverW,d.coverH);
 
   const safe=($('cTitle').value||'cover').replace(/[^\w\s-]/g,'').trim().replace(/\s+/g,'-').toLowerCase();
   const tag=d.binding==='hardcover'?'hardcover-cover':'cover';
