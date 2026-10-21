@@ -434,10 +434,11 @@ function renderCoverArt(c,cv,I,d,edge,safety,hinge){
     c.translate(spineX+spineW/2, cv.height/2+spineOff);
     c.rotate(-Math.PI/2);
     c.textAlign='center'; c.fillStyle=GOLD_SOLID;
-    c.font=`bold ${I(Math.min(.16,d.spine*.55))}px ${serif}`;
-    c.fillText(($('cTitle').value||'').replace(/\n/g,' ').slice(0,40), 0, -I(d.spine)*.08);
+    const spineTitlePx=I(Math.min(.16,d.spine*.55));
+    c.font=`bold ${spineTitlePx}px ${serif}`;
+    c.fillText(($('cTitle').value||'').replace(/\n/g,' ').slice(0,40), 0, -spineTitlePx*.55);
     c.font=`${I(Math.min(.1,d.spine*.4))}px ${serif}`;
-    c.fillText($('cAuthor').value||'', 0, I(d.spine)*.32);
+    c.fillText($('cAuthor').value||'', 0, spineTitlePx*.7);
     c.restore();
   }
   c.shadowColor='transparent'; c.shadowBlur=0; c.shadowOffsetX=0; c.shadowOffsetY=0;
