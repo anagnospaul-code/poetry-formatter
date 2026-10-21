@@ -91,6 +91,7 @@ label.chk input{width:auto}
 
 <div class="card" id="quickCard" style="border-color:var(--accent);border-width:2px">
   <h2>Quick Cover — just fill these in</h2>
+  <div class="btns" style="margin-bottom:10px"><button type="button" id="qcRestoreBtn" style="display:none" onclick="restoreLastCover()">Restore last cover</button></div>
   <div class="fld"><label>Book title (press Enter if you want it to stack across lines, like "Neopoet / Around / the Globe")</label>
     <textarea id="qcTitle" style="height:4em" placeholder="Neopoet&#10;Around&#10;the Globe"></textarea>
   </div>
@@ -103,6 +104,13 @@ label.chk input{width:auto}
     <div class="hint" id="qcImgCheck">Pick a photo — I'll check it's sharp enough to print at full size before you build the cover.</div>
   </div>
   <label class="chk"><input type="checkbox" id="qcAlsoEbook"> Also download the ebook (Kindle) cover from the same inputs</label>
+  <div class="fld"><label>Saved look (for different series/books)</label>
+    <div class="row">
+      <select id="qcPresetSelect" onchange="onPresetSelectChange()" style="flex:2"></select>
+      <button type="button" onclick="saveCurrentAsPreset()" style="flex:1">Save as new</button>
+      <button type="button" onclick="deleteSelectedPreset()" style="flex:1">Delete</button>
+    </div>
+  </div>
   <label class="chk"><input type="checkbox" id="qcRemember" checked> Remember this look (colors, globe position, etc.) for next time</label>
   <div class="btns"><button onclick="quickCreate()">Create My Cover</button></div>
   <div class="hint" id="qcStatus"></div>
@@ -446,30 +454,148 @@ function checkImageApproval(file){
   img.src=URL.createObjectURL(file);
 }
 
-const PRESET_KEY='coverBuilderPreset_v1';
+const JOB_DB_NAME='coverBuilderJobs', JOB_DB_VERSION=1, JOB_STORE='lastJob';
+function openJobDB(){
+  return new Promise((resolve,reject)=>{
+    if(!window.indexedDB){ reject(new Error('no indexedDB')); return; }
+    const req=indexedDB.open(JOB_DB_NAME,JOB_DB_VERSION);
+    req.onupgradeneeded=()=>{ req.result.createObjectStore(JOB_STORE); };
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error);
+  });
+}
+async function saveLastJob(job){
+  try{
+    const db=await openJobDB();
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction(JOB_STORE,'readwrite');
+      tx.objectStore(JOB_STORE).put(job,'last');
+      tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error);
+    });
+  }catch(e){ /* IndexedDB unavailable — ignore */ }
+}
+async function loadLastJob(){
+  try{
+    const db=await openJobDB();
+    return await new Promise((resolve,reject)=>{
+      const tx=db.transaction(JOB_STORE,'readonly');
+      const req=tx.objectStore(JOB_STORE).get('last');
+      req.onsuccess=()=>resolve(req.result||null);
+      req.onerror=()=>reject(req.error);
+    });
+  }catch(e){ return null; }
+}
+async function refreshRestoreButton(){
+  const btn=$('qcRestoreBtn');
+  if(!btn) return;
+  try{
+    const job=await loadLastJob();
+    btn.style.display=job?'inline-block':'none';
+  }catch(e){ btn.style.display='none'; }
+}
+async function restoreLastCover(){
+  const job=await loadLastJob();
+  if(!job) return;
+  $('qcTitle').value=job.title||'';
+  $('qcPages').value=job.pages||'';
+  $('qcAuthor').value=job.author||'';
+  if(job.photoBlob){
+    try{
+      const file=new File([job.photoBlob],job.photoName||'restored-photo.jpg',{type:job.photoType||'image/jpeg'});
+      const dt=new DataTransfer();
+      dt.items.add(file);
+      $('qcBg').files=dt.files;
+      checkImageApproval(file);
+    }catch(e){ /* DataTransfer/File unsupported — fields still restored */ }
+  }
+  const status=$('qcStatus');
+  status.textContent='Restored your last cover\'s inputs — click "Create My Cover" below to rebuild it.';
+  status.style.color='var(--muted)';
+}
+
+const PRESET_KEY='coverBuilderPreset_v1';       // legacy single-preset key (migrated in)
+const PRESETS_KEY='coverBuilderPresets_v2';     // {names:[...], data:{name:settings}, active:name}
+
+function currentPresetSettings(){
+  return {
+    author:$('cAuthor').value||'',
+    textColor:$('textColor').value,
+    titleAlign:$('titleAlign')?$('titleAlign').value:'center',
+    titleSpacing:$('titleSpacing')?$('titleSpacing').value:'0',
+    accentZoom:$('accentZoom')?$('accentZoom').value:'55',
+    accentPanX:$('accentPanX')?$('accentPanX').value:'0',
+    accentPanY:$('accentPanY')?$('accentPanY').value:'0',
+    artFit:$('artFit')?$('artFit').value:'cover',
+    artScope:$('artScope')?$('artScope').value:'full',
+    bgColor:$('bgColor').value,
+    spineText:$('spineText')?$('spineText').checked:true
+  };
+}
+function getPresetStore(){
+  try{
+    const raw=localStorage.getItem(PRESETS_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  // migrate the old single preset, if any, into the new named store
+  let migrated=null;
+  try{ const legacy=localStorage.getItem(PRESET_KEY); if(legacy) migrated=JSON.parse(legacy); }catch(e){}
+  const store={names:['Default'],data:{Default:migrated||{}},active:'Default'};
+  savePresetStore(store);
+  return store;
+}
+function savePresetStore(store){
+  try{ localStorage.setItem(PRESETS_KEY,JSON.stringify(store)); }catch(e){ /* storage unavailable — ignore */ }
+}
 function getPreset(){
-  try{ const raw=localStorage.getItem(PRESET_KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; }
+  const store=getPresetStore();
+  return store.data[store.active]||null;
 }
 function savePreset(){
-  try{
-    localStorage.setItem(PRESET_KEY, JSON.stringify({
-      author:$('cAuthor').value||'',
-      textColor:$('textColor').value,
-      titleAlign:$('titleAlign')?$('titleAlign').value:'center',
-      titleSpacing:$('titleSpacing')?$('titleSpacing').value:'0',
-      accentZoom:$('accentZoom')?$('accentZoom').value:'55',
-      accentPanX:$('accentPanX')?$('accentPanX').value:'0',
-      accentPanY:$('accentPanY')?$('accentPanY').value:'0',
-      artFit:$('artFit')?$('artFit').value:'cover',
-      artScope:$('artScope')?$('artScope').value:'full',
-      bgColor:$('bgColor').value,
-      spineText:$('spineText')?$('spineText').checked:true
-    }));
-  }catch(e){ /* storage unavailable (private window, etc.) — ignore */ }
+  const store=getPresetStore();
+  if(!store.active) store.active='Default';
+  if(!store.names.includes(store.active)) store.names.push(store.active);
+  store.data[store.active]=currentPresetSettings();
+  savePresetStore(store);
+}
+function populatePresetDropdown(){
+  const sel=$('qcPresetSelect');
+  if(!sel) return;
+  const store=getPresetStore();
+  sel.innerHTML=store.names.map(n=>`<option value="${n.replace(/"/g,'&quot;')}"${n===store.active?' selected':''}>${n}</option>`).join('');
+}
+function onPresetSelectChange(){
+  const sel=$('qcPresetSelect');
+  if(!sel) return;
+  const store=getPresetStore();
+  store.active=sel.value;
+  savePresetStore(store);
+  applyPresetToQuickForm();
+}
+function saveCurrentAsPreset(){
+  const name=(prompt('Name this look (e.g. "Around the Globe series"):')||'').trim();
+  if(!name) return;
+  const store=getPresetStore();
+  if(!store.names.includes(name)) store.names.push(name);
+  store.data[name]=currentPresetSettings();
+  store.active=name;
+  savePresetStore(store);
+  populatePresetDropdown();
+}
+function deleteSelectedPreset(){
+  const store=getPresetStore();
+  const name=store.active;
+  if(store.names.length<=1){ alert("That's your only saved look — nothing to delete."); return; }
+  if(!confirm(`Delete the saved look "${name}"?`)) return;
+  store.names=store.names.filter(n=>n!==name);
+  delete store.data[name];
+  store.active=store.names[0];
+  savePresetStore(store);
+  populatePresetDropdown();
 }
 function applyPresetToQuickForm(){
   const p=getPreset();
-  if(p&&p.author&&$('qcAuthor')&&!$('qcAuthor').value) $('qcAuthor').value=p.author;
+  if(p&&p.author&&$('qcAuthor')) $('qcAuthor').value=p.author;
+  populatePresetDropdown();
 }
 
 async function quickCreate(){
@@ -508,6 +634,8 @@ async function quickCreate(){
   if(!artOk){ setStatus("Couldn't read that background photo — try a different file.",true); return; }
 
   if($('qcRemember')&&$('qcRemember').checked) savePreset();
+
+  saveLastJob({title,pages,author,photoBlob:file,photoName:file.name,photoType:file.type}).then(refreshRestoreButton);
 
   let note='';
   try{
@@ -903,20 +1031,24 @@ function sampleRegion(c,x,y,w,h){
   const mean=sum/n;
   return {lum:mean, sd:Math.sqrt(Math.max(0,sumSq/n-mean*mean))};
 }
-function legibilityCheck(d,edge,safety,hinge){
-  if(!artImg && !accentImg) return null;
-  const DPI=90;
+function renderBackgroundOnly(d,edge,safety,hinge,DPI){
   const cv=document.createElement('canvas');
   cv.width=Math.round(d.coverW*DPI); cv.height=Math.round(d.coverH*DPI);
   const c=cv.getContext('2d');
   const I=v=>v*DPI;
-  const backW=I(edge+d.tw), spineX=backW, spineW=I(d.spine), frontX=spineX+spineW, frontW=I(d.tw+edge);
+  const backX=0, backW=I(edge+d.tw), spineX=backW, spineW=I(d.spine), frontX=spineX+spineW, frontW=I(d.tw+edge);
   c.fillStyle=$('bgColor').value; c.fillRect(0,0,cv.width,cv.height);
   if(artImg){
     if(artScope==='full') drawCover(c,artImg,0,0,cv.width,cv.height);
     else drawCover(c,artImg,frontX,0,frontW,cv.height);
   }
   if(accentImg) drawAccent(c,frontX,0,frontW,cv.height);
+  return {c,cv,I,backX,backW,spineX,spineW,frontX,frontW};
+}
+function legibilityCheck(d,edge,safety,hinge){
+  if(!artImg && !accentImg) return null;
+  const DPI=90;
+  const {c,cv,I,frontX,frontW}=renderBackgroundOnly(d,edge,safety,hinge,DPI);
 
   const r=sampleRegion(c, frontX+I(.3), I(8.5*.08), frontW-I(.6), I(2.6));
   const goldLum=0.62;
@@ -929,6 +1061,73 @@ function legibilityCheck(d,edge,safety,hinge){
     : {cls:'bad',note:'very busy/high-detail there — the title may get lost in it'};
   return {contrast,busy};
 }
+// Reference fractions-of-page-height measured from the user's real printed original
+// (via pixel analysis of the original cover PDF — gold-title and globe bounding boxes).
+const REF_TITLE_TOP_FRAC=0.057;   // top of the first title line's caps
+const REF_TITLE_BOTTOM_FRAC=0.27; // bottom of the last title line
+const REF_GLOBE_TOP_FRAC=0.319;   // top of the globe art
+const REF_TOL_OK=0.03, REF_TOL_WARN=0.07;
+
+function compareToOriginal(d,edge,safety,hinge){
+  const titleText=($('cTitle').value||'').trim();
+  if(!titleText) return null;
+  // Measure analytically against the same math renderCoverArt uses, rather than scanning
+  // pixels — a pixel scan picks up false matches from the user's own background photo.
+  const DPI=90;
+  const measureCv=document.createElement('canvas');
+  const mc=measureCv.getContext('2d');
+  const I=v=>v*DPI;
+  const pageH=Math.round(d.coverH*DPI);
+
+  const titleOff=I(($('titlePos')?+$('titlePos').value:0)/50*d.th*.25);
+  const liveW=I(d.tw)-I(edge+safety)-I(hinge);
+  const titleAlign=$('titleAlign')?$('titleAlign').value:'center';
+  const titleSpacing=($('titleSpacing')?+$('titleSpacing').value:0)/1000;
+  const lead=I(.78), bigPx=I(.62);
+  const titleStartY=I(d.th*.13)+titleOff;
+  const fy=drawGoldTitle(mc,titleText,0,titleStartY,liveW,lead,titleAlign,$('textColor').value,I,titleSpacing);
+  const titleTopY=titleStartY-bigPx*0.78;
+  const titleBottomY=fy-lead+bigPx*0.22;
+
+  const rows=[];
+  const check=(label,measuredY,refFrac)=>{
+    if(measuredY==null) return;
+    const measuredFrac=measuredY/pageH;
+    const dev=Math.abs(measuredFrac-refFrac);
+    const cls=dev<=REF_TOL_OK?'ok':dev<=REF_TOL_WARN?'warn':'bad';
+    const note=cls==='ok'?'matches the original closely'
+      : cls==='warn'?`off by ${(dev*100).toFixed(1)}% of page height — close, worth a glance`
+      : `off by ${(dev*100).toFixed(1)}% of page height — noticeably different from the original`;
+    rows.push({label,cls,note});
+  };
+  check('Title top position', titleTopY, REF_TITLE_TOP_FRAC);
+  check('Title bottom position', titleBottomY, REF_TITLE_BOTTOM_FRAC);
+
+  if(accentImg){
+    const zEl=$('accentZoom'), yEl=$('accentPanY');
+    const zoom=zEl?(parseFloat(zEl.value)||100)/100:1;
+    const panY=yEl?(parseFloat(yEl.value)||0)/100:0;
+    const backW=I(edge+d.tw), spineX=backW, spineW=I(d.spine), frontX=spineX+spineW, frontW=I(d.tw+edge);
+    const h=pageH;
+    const s=Math.min(frontW/accentImg.width,h/accentImg.height)*zoom;
+    const ih=accentImg.height*s;
+    const dy=(h-ih)*(0.5+panY);
+    check('Globe position', dy, REF_GLOBE_TOP_FRAC);
+  }
+  return rows.length?rows:null;
+}
+
+function barcodeAreaCheck(d,edge,safety,hinge){
+  const DPI=90;
+  const {c,cv,I,backX,backW}=renderBackgroundOnly(d,edge,safety,hinge,DPI);
+  const bcY=d.binding==='hardcover'?cv.height-I(.76+BARCODE_H):cv.height-I(edge+BARCODE_H);
+  const bcX=d.binding==='hardcover'?backX+backW-I(hinge+.25+BARCODE_W):backX+backW-I(edge+BARCODE_W);
+  const r=sampleRegion(c,bcX,bcY,I(BARCODE_W),I(BARCODE_H));
+  if(r.sd<0.08) return {cls:'ok',note:'calm there — fine under the printed barcode'};
+  if(r.sd<0.15) return {cls:'warn',note:'a little busy under where the barcode prints — likely fine, but check the preview'};
+  return {cls:'bad',note:'busy/detailed image sits right where KDP prints the barcode — consider repositioning the photo'};
+}
+
 function renderChecks(d){
   const rows=[];
   const add=(k,v,cls)=>rows.push(`<li><span class="k">${k}</span><span class="v ${cls}">${v}</span></li>`);
@@ -968,7 +1167,19 @@ function renderChecks(d){
   }
   add('Spine text',d.pages>=SPINE_TEXT_MIN_PAGES?'shown — book qualifies':'hidden — KDP needs 79+ pages',
       d.pages>=SPINE_TEXT_MIN_PAGES?'ok':'warn');
-  add('Barcode area','kept clear, bottom-right of back cover','ok');
+  {
+    const {edge,safety,hinge}=edgeVals(d);
+    try{
+      const cmp=compareToOriginal(d,edge,safety,hinge);
+      if(cmp&&cmp.length) cmp.forEach(row=>add('Matches original — '+row.label,row.note,row.cls));
+    }catch(e){}
+    try{
+      const bc=barcodeAreaCheck(d,edge,safety,hinge);
+      add('Barcode area',bc.note,bc.cls);
+    }catch(e){
+      add('Barcode area','kept clear, bottom-right of back cover','ok');
+    }
+  }
   $('checks').innerHTML=rows.join('');
 }
 
@@ -1047,6 +1258,7 @@ function fillTrims(){
 }
 fillTrims();
 applyPresetToQuickForm();
+refreshRestoreButton();
 ['trim','pages','paper','textColor','cTitle','cSub','cAuthor','cBlurb','spineText','showGuides','bgColor','artScope',
  'textShadow','artZoom','artPanX','artPanY','artFit','accentZoom','accentPanX','accentPanY',
  'titlePos','authorPos','blurbPos','spinePos','titleAlign','titleSpacing']
