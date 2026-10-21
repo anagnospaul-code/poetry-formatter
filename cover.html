@@ -367,7 +367,7 @@ function removeAccent(){
 function loadTemplate(){
   $('cTitle').value='Neopoet\nAround\nthe Globe';
   $('titleSpacing').value=0;
-  $('titleAlign').value='left';
+  $('titleAlign').value='center';
   $('cAuthor').value='Neopoet.com';
   $('textColor').value='#fdfbf6';
   const img=new Image();
@@ -415,7 +415,7 @@ function renderCoverArt(c,cv,I,d,edge,safety,hinge){
   let fy=I(d.th*.4);
   c.shadowColor='transparent'; c.shadowBlur=0; c.shadowOffsetX=0; c.shadowOffsetY=0;
   const titleSpacing=($('titleSpacing')?+$('titleSpacing').value:0)/1000;
-  fy=drawGoldTitle(c,$('cTitle').value,titleX,I(d.th*.3)+titleOff,liveW,I(.42),titleAlign,tc,I,titleSpacing);
+  fy=drawGoldTitle(c,$('cTitle').value,titleX,I(d.th*.22)+titleOff,liveW,I(.78),titleAlign,tc,I,titleSpacing);
   c.fillStyle=tc;
   applyTextShadow(c,I,tc);
   if($('cSub').value.trim()){
@@ -604,7 +604,7 @@ function scLayout(c,words,bigPx,smallPx,family,weight,tracking){
 function drawGoldTitle(c,text,cx,y,maxW,lead,align,tc,I,spacingFactor){
   const family='"Cinzel","Lora","Times New Roman",Times,serif';
   const weight=700;
-  const bigPx=I(.38), smallPx=bigPx*0.66;
+  const bigPx=I(.62), smallPx=bigPx*0.66;
   const tracking=bigPx*0.20+I(spacingFactor||0);
   const forced=(text||'').toUpperCase().split(/\n/);
   let lines=[];
