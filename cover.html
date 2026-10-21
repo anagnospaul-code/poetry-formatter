@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&family=Cinzel:wght@400;600;700;900&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="lora-fonts.js"></script>
 <style>
@@ -175,7 +175,7 @@ label.chk input{width:auto}
         <div class="swrow">
           <button class="swatch" data-c="#fdfbf6" style="background:#fdfbf6" onclick="setTextColor(this)"></button>
           <button class="swatch" data-c="#1d1b18" style="background:#1d1b18" onclick="setTextColor(this)"></button>
-          <button class="swatch" data-c="#e8c87a" style="background:#e8c87a" onclick="setTextColor(this)"></button>
+          <button class="swatch" data-c="#d9a92a" style="background:#d9a92a" onclick="setTextColor(this)"></button>
           <button class="swatch" data-c="#c8a96e" style="background:#c8a96e" onclick="setTextColor(this)"></button>
           <button class="swatch" data-c="#8a6d3b" style="background:#8a6d3b" onclick="setTextColor(this)"></button>
           <input type="text" id="textColor" value="#fdfbf6" style="width:90px" oninput="renderPreview()">
@@ -191,7 +191,7 @@ Around
 the Globe</textarea>
         <div class="hint">Each line you type here prints on its own line — use this to stack the title the way your original cover does.</div>
       </div>
-      <div class="fld"><label style="margin-bottom:2px">Title letter spacing</label><input type="range" id="titleSpacing" min="-20" max="20" value="-8"></div>
+      <div class="fld"><label style="margin-bottom:2px">Title letter spacing</label><input type="range" id="titleSpacing" min="-40" max="40" value="0"></div>
       <div class="fld"><label>Front text alignment</label>
         <select id="titleAlign">
           <option value="center">Centered</option>
@@ -366,10 +366,10 @@ function removeAccent(){
 }
 function loadTemplate(){
   $('cTitle').value='Neopoet\nAround\nthe Globe';
-  $('titleSpacing').value=-8;
+  $('titleSpacing').value=0;
   $('titleAlign').value='left';
   $('cAuthor').value='Neopoet.com';
-  $('textColor').value='#e8c87a';
+  $('textColor').value='#fdfbf6';
   const img=new Image();
   img.onload=()=>{
     accentImg=img; $('accentRow').style.display='block'; $('accentPosRow').style.display='block';
@@ -423,10 +423,10 @@ function renderPreview(){
   const titleAlign=$('titleAlign')?$('titleAlign').value:'center';
   const titleX=titleAlign==='left'?frontX+I(hinge+safety):frontX+I(d.tw/2)+I(hinge/2);
   let fy=I(d.th*.4);
-  c.font=`bold ${I(.38)}px ${serif}`;
   c.shadowColor='transparent'; c.shadowBlur=0; c.shadowOffsetX=0; c.shadowOffsetY=0;
-  const titleSpacing=($('titleSpacing')?+$('titleSpacing').value:-8)/1000;
-  fy=drawEmbossWrapped(c,$('cTitle').value,titleX,I(d.th*.3)+titleOff,liveW,I(.42),titleAlign,tc,I,titleSpacing);
+  const titleSpacing=($('titleSpacing')?+$('titleSpacing').value:0)/1000;
+  fy=drawGoldTitle(c,$('cTitle').value,titleX,I(d.th*.3)+titleOff,liveW,I(.42),titleAlign,tc,I,titleSpacing);
+  c.fillStyle=tc;
   applyTextShadow(c,I,tc);
   if($('cSub').value.trim()){
     c.font=`italic ${I(.17)}px ${serif}`;
@@ -443,9 +443,9 @@ function renderPreview(){
     c.save();
     c.translate(spineX+spineW/2, cv.height/2+spineOff);
     c.rotate(-Math.PI/2);
-    c.textAlign='center'; c.fillStyle=tc;
+    c.textAlign='center'; c.fillStyle=GOLD_SOLID;
     c.font=`bold ${I(Math.min(.16,d.spine*.55))}px ${serif}`;
-    c.fillText(($('cTitle').value||'').slice(0,40), 0, -I(d.spine)*.08);
+    c.fillText(($('cTitle').value||'').replace(/\n/g,' ').slice(0,40), 0, -I(d.spine)*.08);
     c.font=`${I(Math.min(.1,d.spine*.4))}px ${serif}`;
     c.fillText($('cAuthor').value||'', 0, I(d.spine)*.32);
     c.restore();
@@ -510,31 +510,99 @@ function renderEbookChecks(d){
   add('This is separate from','your print cover — ebooks get their own flat image','ok');
   $('checks').innerHTML=rows.join('');
 }
-function drawEmbossWrapped(c,text,cx,y,maxW,lead,align,tc,I,spacingFactor){
-  c.textAlign=align||'center';
-  try{ c.letterSpacing=I(spacingFactor==null?-.008:spacingFactor)+'px'; }catch(e){}
-  const forced=(text||'').split(/\n/);
+const SC_MINOR_WORDS=['the','a','an','of','and','to','in','on','for','or'];
+function hexToHsl(hex){
+  let h=(hex||'#000').replace('#','');
+  if(h.length===3)h=h.split('').map(c=>c+c).join('');
+  const r=(parseInt(h.substring(0,2),16)||0)/255, g=(parseInt(h.substring(2,4),16)||0)/255, b=(parseInt(h.substring(4,6),16)||0)/255;
+  const max=Math.max(r,g,b), min=Math.min(r,g,b);
+  let hh=0,s=0; const l=(max+min)/2;
+  if(max!==min){
+    const d=max-min;
+    s=l>0.5?d/(2-max-min):d/(max+min);
+    if(max===r)hh=(g-b)/d+(g<b?6:0);
+    else if(max===g)hh=(b-r)/d+2;
+    else hh=(r-g)/d+4;
+    hh/=6;
+  }
+  return [hh,s,l];
+}
+function hslToHex(h,s,l){
+  let r,g,b;
+  if(s===0){ r=g=b=l; }
+  else{
+    const hue2rgb=(p,q,t)=>{
+      if(t<0)t+=1; if(t>1)t-=1;
+      if(t<1/6)return p+(q-p)*6*t;
+      if(t<1/2)return q;
+      if(t<2/3)return p+(q-p)*(2/3-t)*6;
+      return p;
+    };
+    const q=l<0.5?l*(1+s):l+s-l*s, p=2*l-q;
+    r=hue2rgb(p,q,h+1/3); g=hue2rgb(p,q,h); b=hue2rgb(p,q,h-1/3);
+  }
+  const toHex=v=>Math.round(Math.max(0,Math.min(1,v))*255).toString(16).padStart(2,'0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+const GOLD_SOLID='#d9a62a';
+function titleGoldStops(tc){
+  let [h,s]=hexToHsl(tc);
+  if(s<0.15)h=0.13;
+  const top=hslToHex(h+0.012,0.92,0.55);
+  const bottom=hslToHex(Math.max(0,h-0.02),0.85,0.44);
+  return [top,bottom];
+}
+function scLayout(c,words,bigPx,smallPx,family,weight,tracking){
+  const glyphs=[];
+  let w=0;
+  words.forEach((word,wi)=>{
+    if(wi>0){ c.font=`${weight} ${smallPx}px ${family}`; const sw=c.measureText(' ').width+tracking; glyphs.push({sp:true,w:sw}); w+=sw; }
+    [...word].forEach((ch,ci)=>{
+      const big=ci===0 && !SC_MINOR_WORDS.includes(word.toLowerCase());
+      const sz=big?bigPx:smallPx;
+      c.font=`${weight} ${sz}px ${family}`;
+      const gw=c.measureText(ch).width+tracking;
+      glyphs.push({ch,sz,w:gw});
+      w+=gw;
+    });
+  });
+  return {glyphs,width:Math.max(0,w-tracking)};
+}
+function drawGoldTitle(c,text,cx,y,maxW,lead,align,tc,I,spacingFactor){
+  const family='"Cinzel","Lora","Times New Roman",Times,serif';
+  const weight=700;
+  const bigPx=I(.38), smallPx=bigPx*0.66;
+  const tracking=bigPx*0.05+I(spacingFactor||0);
+  const forced=(text||'').toUpperCase().split(/\n/);
   let lines=[];
   forced.forEach(para=>{
     const words=para.split(/\s+/).filter(Boolean);
-    let line='';
+    let line=[];
     words.forEach(w=>{
-      const t=(line?line+' ':'')+w;
-      if(c.measureText(t).width>maxW && line){lines.push(line);line=w;} else line=t;
+      const trial=[...line,w];
+      if(scLayout(c,trial,bigPx,smallPx,family,weight,tracking).width>maxW && line.length){
+        lines.push(line); line=[w];
+      }else line=trial;
     });
     lines.push(line);
   });
-  const dx=I(.013), dy=I(.013);
-  lines.forEach((l,i)=>{
+  const [topC,botC]=titleGoldStops(tc);
+  lines.forEach((words,i)=>{
     const ly=y+i*lead;
-    c.fillStyle='rgba(0,0,0,.55)';
-    c.fillText(l,cx+dx,ly+dy);
-    c.fillStyle='rgba(255,255,255,.35)';
-    c.fillText(l,cx-dx*.6,ly-dy*.6);
-    c.fillStyle=tc;
-    c.fillText(l,cx,ly);
+    const layout=scLayout(c,words,bigPx,smallPx,family,weight,tracking);
+    let startX=align==='left'?cx:cx-layout.width/2;
+    const grad=c.createLinearGradient(0,ly-bigPx*0.78,0,ly+bigPx*0.22);
+    grad.addColorStop(0,topC); grad.addColorStop(1,botC);
+    c.fillStyle=grad;
+    c.textAlign='left';
+    c.shadowColor='rgba(10,8,4,.55)'; c.shadowBlur=I(.018); c.shadowOffsetX=I(.01); c.shadowOffsetY=I(.012);
+    let gx=startX;
+    layout.glyphs.forEach(g=>{
+      if(!g.sp){ c.font=`${weight} ${g.sz}px ${family}`; c.fillText(g.ch,gx,ly); }
+      gx+=g.w;
+    });
   });
-  try{ c.letterSpacing='0px'; }catch(e){}
+  c.shadowColor='transparent'; c.shadowBlur=0; c.shadowOffsetX=0; c.shadowOffsetY=0;
   return y+lines.length*lead;
 }
 function drawWrapped(c,text,cx,y,maxW,lead,align){
@@ -760,6 +828,7 @@ fillTrims();
     el.addEventListener(el.type==='checkbox'?'change':'input',()=>renderPreview());
   });
 renderPreview();
+if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(()=>renderPreview()); }
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});
