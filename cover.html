@@ -99,7 +99,8 @@ label.chk input{width:auto}
     <div class="fld"><label>Author / site name on the cover</label><input type="text" id="qcAuthor" placeholder="Neopoet.com"></div>
   </div>
   <div class="fld"><label>Background photo</label>
-    <input type="file" id="qcBg" accept="image/*">
+    <input type="file" id="qcBg" accept="image/*" onchange="checkImageApproval(this.files[0])">
+    <div class="hint" id="qcImgCheck">Pick a photo — I'll check it's sharp enough to print at full size before you build the cover.</div>
   </div>
   <div class="btns"><button onclick="quickCreate()">Create My Cover</button></div>
   <div class="hint" id="qcStatus"></div>
@@ -417,6 +418,30 @@ function loadArtFile(file){
     img.onerror=()=>resolve(false);
     img.src=URL.createObjectURL(file);
   });
+}
+
+function checkImageApproval(file){
+  const el=$('qcImgCheck');
+  if(!el)return;
+  if(!file){ el.textContent='Pick a photo — I\'ll check it\'s sharp enough to print at full size before you build the cover.'; el.className='hint'; return; }
+  el.textContent='Checking…'; el.className='hint';
+  const img=new Image();
+  img.onload=()=>{
+    URL.revokeObjectURL(img.src);
+    let d;
+    try{ d=dims(); }catch(e){ d=null; }
+    const areaW=(d&&d.coverW)?d.coverW:11.5, areaH=(d&&d.coverH)?d.coverH:8.75;
+    const dpi=Math.min(img.width/areaW, img.height/areaH);
+    const needW=Math.round(areaW*300), needH=Math.round(areaH*300);
+    let label,cls;
+    if(dpi>=250){ label=`Approved — ${Math.round(dpi)} dpi at full cover size. This will print sharp.`; cls='ok'; }
+    else if(dpi>=150){ label=`Usable, but a little soft — ${Math.round(dpi)} dpi. It'll look fine for most readers, but a higher-resolution photo would print sharper.`; cls='warn'; }
+    else{ label=`Not approved — only ≈${Math.round(dpi)} dpi at full size. This will look blurry or pixelated when printed; use a higher-resolution photo or zoom out less.`; cls='bad'; }
+    el.innerHTML=`<span class="${cls}">${label}</span><br>Photo is ${img.width}×${img.height}px — a full-wrap cover at this trim size wants at least ${needW}×${needH}px for a crisp 300dpi print.`;
+    el.className='hint';
+  };
+  img.onerror=()=>{ el.textContent="Couldn't read that photo — try a different file."; el.className='hint bad'; };
+  img.src=URL.createObjectURL(file);
 }
 
 async function quickCreate(){
