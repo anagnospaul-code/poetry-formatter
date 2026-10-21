@@ -115,6 +115,10 @@ label.chk input{width:auto}
 
     <div class="card">
       <h2>2 · Look</h2>
+      <div class="fld">
+        <button class="ghost" onclick="loadTemplate()">Use the "Neopoet Around the Globe" template</button>
+        <div class="hint">Sets the title, gold color, globe, and layout to match your original cover in one click — you only need to pick the background photo below ("Use an image instead").</div>
+      </div>
       <div class="fld"><label>Background</label>
         <div class="swrow">
           <button class="swatch" data-c="#1d2a3a" style="background:#1d2a3a" onclick="setColor(this)"></button>
@@ -359,6 +363,22 @@ function resetAccentPos(){
 function removeAccent(){
   accentImg=null; $('accentPosRow').style.display='none'; $('accent').value='';
   renderPreview();
+}
+function loadTemplate(){
+  $('cTitle').value='Neopoet\nAround\nthe Globe';
+  $('titleSpacing').value=-8;
+  $('titleAlign').value='left';
+  $('cAuthor').value='Neopoet.com';
+  $('textColor').value='#e8c87a';
+  const img=new Image();
+  img.onload=()=>{
+    accentImg=img; $('accentRow').style.display='block'; $('accentPosRow').style.display='block';
+    $('accentZoom').value=55; $('accentPanX').value=0; $('accentPanY').value=0;
+    renderPreview();
+    alert('Template loaded — gold title, globe, and layout are set. Now click "Use an image instead" above to pick your background photo.');
+  };
+  img.onerror=()=>{ alert("Couldn't load the template's globe image — try again or reload the page."); };
+  img.src='assets/globe-default.png';
 }
 
 function renderPreview(){
