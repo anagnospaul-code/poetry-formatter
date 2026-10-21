@@ -415,7 +415,7 @@ function renderCoverArt(c,cv,I,d,edge,safety,hinge){
   let fy=I(d.th*.4);
   c.shadowColor='transparent'; c.shadowBlur=0; c.shadowOffsetX=0; c.shadowOffsetY=0;
   const titleSpacing=($('titleSpacing')?+$('titleSpacing').value:0)/1000;
-  fy=drawGoldTitle(c,$('cTitle').value,titleX,I(d.th*.22)+titleOff,liveW,I(.78),titleAlign,tc,I,titleSpacing);
+  fy=drawGoldTitle(c,$('cTitle').value,titleX,I(d.th*.3)+titleOff,liveW,I(.78),titleAlign,tc,I,titleSpacing);
   c.fillStyle=tc;
   applyTextShadow(c,I,tc);
   if($('cSub').value.trim()){
@@ -722,6 +722,22 @@ function drawAccent(c,x,y,w,h){
   const zoom=zEl?(parseFloat(zEl.value)||100)/100:1;
   const panX=xEl?(parseFloat(xEl.value)||0)/100:0;
   const panY=yEl?(parseFloat(yEl.value)||0)/100:0;
+
+  // Soft violet rim-glow behind the globe, like the halo on the original cover.
+  const s=Math.min(w/accentImg.width,h/accentImg.height)*zoom;
+  const iw=accentImg.width*s, ih=accentImg.height*s;
+  const dx=x-(iw-w)*(0.5+panX), dy=y-(ih-h)*(0.5+panY);
+  const cx=dx+iw/2, cy=dy+ih/2, r=Math.min(iw,ih)*0.49;
+  c.save();
+  c.beginPath(); c.rect(x,y,w,h); c.clip();
+  const glow=c.createRadialGradient(cx,cy,r*0.9,cx,cy,r*1.4);
+  glow.addColorStop(0,'rgba(180,120,210,0)');
+  glow.addColorStop(0.55,'rgba(180,120,210,.32)');
+  glow.addColorStop(1,'rgba(180,120,210,0)');
+  c.fillStyle=glow;
+  c.beginPath(); c.arc(cx,cy,r*1.4,0,Math.PI*2); c.fill();
+  c.restore();
+
   drawImageFit(c,accentImg,x,y,w,h,zoom,panX,panY,'contain');
 }
 function renderChecks(d){
