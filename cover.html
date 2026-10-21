@@ -405,7 +405,7 @@ function renderPreview(){
     fy=drawWrapped(c,$('cSub').value,titleX,fy+I(.08),liveW,I(.22),titleAlign);
   }
   c.font=`${I(.16)}px ${serif}`;
-  drawWrapped(c,$('cAuthor').value,titleX,I(d.th*.86)+authorOff,liveW,I(.2),titleAlign);
+  drawWrapped(c,$('cAuthor').value,frontX+I(d.tw/2)+I(hinge/2),I(d.th*.86)+authorOff,liveW,I(.2),'center');
 
   const backLiveX=I(edge+safety), backLiveW=I(d.tw)-I(edge+safety)-I(hinge)-I(safety);
   c.textAlign='left'; c.font=`${I(.145)}px ${serif}`;
