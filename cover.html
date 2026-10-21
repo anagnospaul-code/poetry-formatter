@@ -430,15 +430,44 @@ function renderCoverArt(c,cv,I,d,edge,safety,hinge){
   drawWrappedLeft(c,$('cBlurb').value,backLiveX,I(TOPStart(d,edge,safety))+blurbOff,backLiveW,I(.22));
 
   if($('spineText').checked && d.pages>=SPINE_TEXT_MIN_PAGES && d.spine>.12){
+    const scFamily='"Cinzel","Lora","Times New Roman",Times,serif';
+    const spineCx=spineX+spineW/2;
+
+    // Title: gold small-caps, upper portion of the spine.
     c.save();
-    c.translate(spineX+spineW/2, cv.height/2+spineOff);
+    c.translate(spineCx, cv.height*0.36+spineOff);
     c.rotate(-Math.PI/2);
-    c.textAlign='center'; c.fillStyle=GOLD_SOLID;
-    const spineTitlePx=I(Math.min(.16,d.spine*.55));
-    c.font=`bold ${spineTitlePx}px ${serif}`;
-    c.fillText(($('cTitle').value||'').replace(/\n/g,' ').slice(0,40), 0, -spineTitlePx*.55);
-    c.font=`${I(Math.min(.1,d.spine*.4))}px ${serif}`;
-    c.fillText($('cAuthor').value||'', 0, spineTitlePx*.7);
+    const bigPx=I(Math.min(.135,d.spine*.48)), smallPx=bigPx*0.66;
+    const tracking=bigPx*0.20;
+    const titleWords=(($('cTitle').value||'').replace(/\n/g,' ').trim().toUpperCase()).split(/\s+/).filter(Boolean);
+    const layout=scLayout(c,titleWords,bigPx,smallPx,scFamily,700,tracking);
+    const [topC,botC]=titleGoldStops(tc);
+    const grad=c.createLinearGradient(0,-bigPx*0.78,0,bigPx*0.22);
+    grad.addColorStop(0,topC); grad.addColorStop(1,botC);
+    c.fillStyle=grad; c.textAlign='left';
+    c.shadowColor='rgba(10,8,4,.5)'; c.shadowBlur=I(.012); c.shadowOffsetX=I(.006); c.shadowOffsetY=I(.008);
+    let gx=-layout.width/2;
+    layout.glyphs.forEach(g=>{
+      if(!g.sp){ c.font=`700 ${g.sz}px ${scFamily}`; c.fillText(g.ch,gx,0); }
+      gx+=g.w;
+    });
+    c.shadowColor='transparent'; c.shadowBlur=0; c.shadowOffsetX=0; c.shadowOffsetY=0;
+    c.restore();
+
+    // "author" line: small, letter-spaced, light — near the bottom of the spine.
+    c.save();
+    c.translate(spineCx, cv.height*0.84+spineOff);
+    c.rotate(-Math.PI/2);
+    const authorPx=I(Math.min(.072,d.spine*.26));
+    const authorTracking=authorPx*0.55;
+    const authorText=($('cAuthor').value||'').toLowerCase();
+    c.font=`${authorPx}px ${scFamily}`;
+    c.fillStyle='rgba(243,239,230,.92)';
+    const aChars=[...authorText];
+    const aWidths=aChars.map(ch=>c.measureText(ch).width+authorTracking);
+    const aTotal=aWidths.reduce((s,w)=>s+w,0)-authorTracking;
+    let ax=-aTotal/2; c.textAlign='left';
+    aChars.forEach((ch,i)=>{ c.fillText(ch,ax,0); ax+=aWidths[i]; });
     c.restore();
   }
   c.shadowColor='transparent'; c.shadowBlur=0; c.shadowOffsetX=0; c.shadowOffsetY=0;
