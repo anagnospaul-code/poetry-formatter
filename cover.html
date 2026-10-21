@@ -183,6 +183,12 @@ label.chk input{width:auto}
     <div class="card">
       <h2>3 · Text</h2>
       <div class="fld"><label>Title</label><input type="text" id="cTitle" value="Neopoet Around the Globe"></div>
+      <div class="fld"><label>Front text alignment</label>
+        <select id="titleAlign">
+          <option value="center">Centered</option>
+          <option value="left">Left-aligned (classic spine-to-edge look)</option>
+        </select>
+      </div>
       <div class="fld"><label>Subtitle (optional)</label><input type="text" id="cSub" value=""></div>
       <div class="fld"><label>Author / editor</label><input type="text" id="cAuthor" value="Neopoet.com"></div>
       <div class="fld" id="blurbFld"><label>Back-cover blurb</label><textarea id="cBlurb">A gathering of voices from every corner of the world — the poems Neopoet's own writers chose to carry across the year.</textarea></div>
@@ -389,15 +395,17 @@ function renderPreview(){
   const spineOff=I(($('spinePos')?+$('spinePos').value:0)/50*d.spine*4);
 
   const liveW=I(d.tw)-I(edge+safety)-I(hinge);
+  const titleAlign=$('titleAlign')?$('titleAlign').value:'center';
+  const titleX=titleAlign==='left'?frontX+I(hinge+safety):frontX+I(d.tw/2)+I(hinge/2);
   let fy=I(d.th*.4);
   c.font=`bold ${I(.34)}px ${serif}`;
-  fy=drawWrapped(c,$('cTitle').value,frontX+I(d.tw/2)+I(hinge/2),I(d.th*.38)+titleOff,liveW,I(.4));
+  fy=drawWrapped(c,$('cTitle').value,titleX,I(d.th*.38)+titleOff,liveW,I(.4),titleAlign);
   if($('cSub').value.trim()){
     c.font=`italic ${I(.17)}px ${serif}`;
-    fy=drawWrapped(c,$('cSub').value,frontX+I(d.tw/2)+I(hinge/2),fy+I(.08),liveW,I(.22));
+    fy=drawWrapped(c,$('cSub').value,titleX,fy+I(.08),liveW,I(.22),titleAlign);
   }
   c.font=`${I(.16)}px ${serif}`;
-  drawWrapped(c,$('cAuthor').value,frontX+I(d.tw/2)+I(hinge/2),I(d.th*.86)+authorOff,liveW,I(.2));
+  drawWrapped(c,$('cAuthor').value,titleX,I(d.th*.86)+authorOff,liveW,I(.2),titleAlign);
 
   const backLiveX=I(edge+safety), backLiveW=I(d.tw)-I(edge+safety)-I(hinge)-I(safety);
   c.textAlign='left'; c.font=`${I(.145)}px ${serif}`;
@@ -474,8 +482,8 @@ function renderEbookChecks(d){
   add('This is separate from','your print cover — ebooks get their own flat image','ok');
   $('checks').innerHTML=rows.join('');
 }
-function drawWrapped(c,text,cx,y,maxW,lead){
-  c.textAlign='center';
+function drawWrapped(c,text,cx,y,maxW,lead,align){
+  c.textAlign=align||'center';
   const words=(text||'').split(/\s+/).filter(Boolean);
   let line='',lines=[];
   words.forEach(w=>{
@@ -687,7 +695,7 @@ function fillTrims(){
 fillTrims();
 ['trim','pages','paper','textColor','cTitle','cSub','cAuthor','cBlurb','spineText','showGuides','bgColor','artScope',
  'textShadow','artZoom','artPanX','artPanY','artFit','accentZoom','accentPanX','accentPanY',
- 'titlePos','authorPos','blurbPos','spinePos']
+ 'titlePos','authorPos','blurbPos','spinePos','titleAlign']
   .forEach(id=>{
     const el=$(id);
     el.addEventListener(el.type==='checkbox'?'change':'input',()=>renderPreview());
