@@ -89,6 +89,23 @@ label.chk input{width:auto}
 <h1>Book Cover Builder</h1>
 <div class="sub" id="subTag">A full-wrap paperback cover sized to KDP's own spine-width and bleed rules — front, spine, and back as one print-ready PDF.</div>
 
+<div class="card" id="quickCard" style="border-color:var(--accent);border-width:2px">
+  <h2>Quick Cover — just fill these in</h2>
+  <div class="fld"><label>Book title (press Enter if you want it to stack across lines, like "Neopoet / Around / the Globe")</label>
+    <textarea id="qcTitle" style="height:4em" placeholder="Neopoet&#10;Around&#10;the Globe"></textarea>
+  </div>
+  <div class="row">
+    <div class="fld"><label>Interior page count</label><input type="number" id="qcPages" min="24" max="828" placeholder="150"></div>
+    <div class="fld"><label>Author / site name on the cover</label><input type="text" id="qcAuthor" placeholder="Neopoet.com"></div>
+  </div>
+  <div class="fld"><label>Background photo</label>
+    <input type="file" id="qcBg" accept="image/*">
+  </div>
+  <div class="btns"><button onclick="quickCreate()">Create My Cover</button></div>
+  <div class="hint" id="qcStatus"></div>
+  <div class="hint">This fills in the gold title, the globe, and the layout from the "Neopoet Around the Globe" look automatically. Want to fine-tune anything after — size, colors, position — everything below still works too.</div>
+</div>
+
 <div class="cols">
   <div>
     <div class="card">
@@ -364,21 +381,75 @@ function removeAccent(){
   accentImg=null; $('accentPosRow').style.display='none'; $('accent').value='';
   renderPreview();
 }
+function loadAccentDefault(){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      accentImg=img; $('accentRow').style.display='block'; $('accentPosRow').style.display='block';
+      $('accentZoom').value=55; $('accentPanX').value=0; $('accentPanY').value=0;
+      resolve(true);
+    };
+    img.onerror=()=>resolve(false);
+    img.src='assets/globe-default.png';
+  });
+}
 function loadTemplate(){
   $('cTitle').value='Neopoet\nAround\nthe Globe';
   $('titleSpacing').value=0;
   $('titleAlign').value='center';
   $('cAuthor').value='Neopoet.com';
   $('textColor').value='#fdfbf6';
-  const img=new Image();
-  img.onload=()=>{
-    accentImg=img; $('accentRow').style.display='block'; $('accentPosRow').style.display='block';
-    $('accentZoom').value=55; $('accentPanX').value=0; $('accentPanY').value=0;
+  loadAccentDefault().then(ok=>{
     renderPreview();
-    alert('Template loaded — gold title, globe, and layout are set. Now click "Use an image instead" above to pick your background photo.');
-  };
-  img.onerror=()=>{ alert("Couldn't load the template's globe image — try again or reload the page."); };
-  img.src='assets/globe-default.png';
+    if(ok) alert('Template loaded — gold title, globe, and layout are set. Now click "Use an image instead" above to pick your background photo.');
+    else alert("Couldn't load the template's globe image — try again or reload the page.");
+  });
+}
+
+function loadArtFile(file){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      artImg=img; $('artRow').style.display='block'; $('artFitRow').style.display='block'; $('artPosRow').style.display='block';
+      $('artScope').value='full'; $('artZoom').value=100; $('artPanX').value=0; $('artPanY').value=0;
+      resolve(true);
+    };
+    img.onerror=()=>resolve(false);
+    img.src=URL.createObjectURL(file);
+  });
+}
+
+async function quickCreate(){
+  const status=$('qcStatus');
+  const setStatus=(msg,bad)=>{ status.textContent=msg; status.style.color=bad?'var(--bad)':'var(--muted)'; };
+
+  const title=$('qcTitle').value.trim();
+  const pages=parseInt($('qcPages').value,10);
+  const author=$('qcAuthor').value.trim();
+  const file=$('qcBg').files[0];
+
+  if(!title){ setStatus('Add a title first.',true); return; }
+  if(!pages||pages<24){ setStatus('Add your page count (at least 24) — it sets the spine width.',true); return; }
+  if(!file){ setStatus('Choose a background photo.',true); return; }
+
+  setStatus('Building your cover…',false);
+
+  if($('binding').value!=='paperback'){ $('binding').value='paperback'; setBinding(); }
+  $('pages').value=pages;
+  $('cTitle').value=title;
+  $('titleSpacing').value=0;
+  $('titleAlign').value='center';
+  $('cAuthor').value=author||'Neopoet.com';
+  $('textColor').value='#fdfbf6';
+
+  const [accentOk,artOk]=await Promise.all([loadAccentDefault(),loadArtFile(file)]);
+  renderPreview();
+
+  if(!accentOk){ setStatus("Cover built, but the globe image couldn't load — try reloading the page.",true); return; }
+  if(!artOk){ setStatus("Couldn't read that background photo — try a different file.",true); return; }
+
+  setStatus('Your cover is ready below — scroll down to preview it and download the PDF.',false);
+  document.querySelector('.stage')?.scrollIntoView({behavior:'smooth',block:'center'});
 }
 
 function renderCoverArt(c,cv,I,d,edge,safety,hinge){
