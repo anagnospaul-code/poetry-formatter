@@ -182,7 +182,11 @@ label.chk input{width:auto}
 
     <div class="card">
       <h2>3 · Text</h2>
-      <div class="fld"><label>Title</label><input type="text" id="cTitle" value="Neopoet Around the Globe"></div>
+      <div class="fld"><label>Title</label><textarea id="cTitle" style="height:4.5em">Neopoet
+Around
+the Globe</textarea>
+        <div class="hint">Each line you type here prints on its own line — use this to stack the title the way your original cover does.</div>
+      </div>
       <div class="fld"><label>Front text alignment</label>
         <select id="titleAlign">
           <option value="center">Centered</option>
@@ -398,8 +402,10 @@ function renderPreview(){
   const titleAlign=$('titleAlign')?$('titleAlign').value:'center';
   const titleX=titleAlign==='left'?frontX+I(hinge+safety):frontX+I(d.tw/2)+I(hinge/2);
   let fy=I(d.th*.4);
-  c.font=`bold ${I(.34)}px ${serif}`;
-  fy=drawWrapped(c,$('cTitle').value,titleX,I(d.th*.38)+titleOff,liveW,I(.4),titleAlign);
+  c.font=`bold ${I(.38)}px ${serif}`;
+  c.shadowColor='transparent'; c.shadowBlur=0; c.shadowOffsetX=0; c.shadowOffsetY=0;
+  fy=drawEmbossWrapped(c,$('cTitle').value,titleX,I(d.th*.3)+titleOff,liveW,I(.42),titleAlign,tc,I);
+  applyTextShadow(c,I,tc);
   if($('cSub').value.trim()){
     c.font=`italic ${I(.17)}px ${serif}`;
     fy=drawWrapped(c,$('cSub').value,titleX,fy+I(.08),liveW,I(.22),titleAlign);
@@ -482,15 +488,44 @@ function renderEbookChecks(d){
   add('This is separate from','your print cover — ebooks get their own flat image','ok');
   $('checks').innerHTML=rows.join('');
 }
+function drawEmbossWrapped(c,text,cx,y,maxW,lead,align,tc,I){
+  c.textAlign=align||'center';
+  const forced=(text||'').split(/\n/);
+  let lines=[];
+  forced.forEach(para=>{
+    const words=para.split(/\s+/).filter(Boolean);
+    let line='';
+    words.forEach(w=>{
+      const t=(line?line+' ':'')+w;
+      if(c.measureText(t).width>maxW && line){lines.push(line);line=w;} else line=t;
+    });
+    lines.push(line);
+  });
+  const dx=I(.013), dy=I(.013);
+  lines.forEach((l,i)=>{
+    const ly=y+i*lead;
+    c.fillStyle='rgba(0,0,0,.55)';
+    c.fillText(l,cx+dx,ly+dy);
+    c.fillStyle='rgba(255,255,255,.35)';
+    c.fillText(l,cx-dx*.6,ly-dy*.6);
+    c.fillStyle=tc;
+    c.fillText(l,cx,ly);
+  });
+  return y+lines.length*lead;
+}
 function drawWrapped(c,text,cx,y,maxW,lead,align){
   c.textAlign=align||'center';
-  const words=(text||'').split(/\s+/).filter(Boolean);
-  let line='',lines=[];
-  words.forEach(w=>{
-    const t=(line?line+' ':'')+w;
-    if(c.measureText(t).width>maxW && line){lines.push(line);line=w;} else line=t;
+  const forced=(text||'').split(/\n/);
+  let lines=[];
+  forced.forEach(para=>{
+    const words=para.split(/\s+/).filter(Boolean);
+    let line='';
+    words.forEach(w=>{
+      const t=(line?line+' ':'')+w;
+      if(c.measureText(t).width>maxW && line){lines.push(line);line=w;} else line=t;
+    });
+    lines.push(line);
   });
-  if(line)lines.push(line);
   lines.forEach((l,i)=>c.fillText(l,cx,y+i*lead));
   return y+lines.length*lead;
 }
