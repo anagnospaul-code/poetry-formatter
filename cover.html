@@ -187,6 +187,7 @@ Around
 the Globe</textarea>
         <div class="hint">Each line you type here prints on its own line — use this to stack the title the way your original cover does.</div>
       </div>
+      <div class="fld"><label style="margin-bottom:2px">Title letter spacing</label><input type="range" id="titleSpacing" min="-20" max="20" value="-8"></div>
       <div class="fld"><label>Front text alignment</label>
         <select id="titleAlign">
           <option value="center">Centered</option>
@@ -404,7 +405,8 @@ function renderPreview(){
   let fy=I(d.th*.4);
   c.font=`bold ${I(.38)}px ${serif}`;
   c.shadowColor='transparent'; c.shadowBlur=0; c.shadowOffsetX=0; c.shadowOffsetY=0;
-  fy=drawEmbossWrapped(c,$('cTitle').value,titleX,I(d.th*.3)+titleOff,liveW,I(.42),titleAlign,tc,I);
+  const titleSpacing=($('titleSpacing')?+$('titleSpacing').value:-8)/1000;
+  fy=drawEmbossWrapped(c,$('cTitle').value,titleX,I(d.th*.3)+titleOff,liveW,I(.42),titleAlign,tc,I,titleSpacing);
   applyTextShadow(c,I,tc);
   if($('cSub').value.trim()){
     c.font=`italic ${I(.17)}px ${serif}`;
@@ -488,8 +490,9 @@ function renderEbookChecks(d){
   add('This is separate from','your print cover — ebooks get their own flat image','ok');
   $('checks').innerHTML=rows.join('');
 }
-function drawEmbossWrapped(c,text,cx,y,maxW,lead,align,tc,I){
+function drawEmbossWrapped(c,text,cx,y,maxW,lead,align,tc,I,spacingFactor){
   c.textAlign=align||'center';
+  try{ c.letterSpacing=I(spacingFactor==null?-.008:spacingFactor)+'px'; }catch(e){}
   const forced=(text||'').split(/\n/);
   let lines=[];
   forced.forEach(para=>{
@@ -511,6 +514,7 @@ function drawEmbossWrapped(c,text,cx,y,maxW,lead,align,tc,I){
     c.fillStyle=tc;
     c.fillText(l,cx,ly);
   });
+  try{ c.letterSpacing='0px'; }catch(e){}
   return y+lines.length*lead;
 }
 function drawWrapped(c,text,cx,y,maxW,lead,align){
@@ -730,7 +734,7 @@ function fillTrims(){
 fillTrims();
 ['trim','pages','paper','textColor','cTitle','cSub','cAuthor','cBlurb','spineText','showGuides','bgColor','artScope',
  'textShadow','artZoom','artPanX','artPanY','artFit','accentZoom','accentPanX','accentPanY',
- 'titlePos','authorPos','blurbPos','spinePos','titleAlign']
+ 'titlePos','authorPos','blurbPos','spinePos','titleAlign','titleSpacing']
   .forEach(id=>{
     const el=$(id);
     el.addEventListener(el.type==='checkbox'?'change':'input',()=>renderPreview());
