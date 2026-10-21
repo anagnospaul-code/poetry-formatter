@@ -102,6 +102,8 @@ label.chk input{width:auto}
     <input type="file" id="qcBg" accept="image/*" onchange="checkImageApproval(this.files[0])">
     <div class="hint" id="qcImgCheck">Pick a photo — I'll check it's sharp enough to print at full size before you build the cover.</div>
   </div>
+  <label class="chk"><input type="checkbox" id="qcAlsoEbook"> Also download the ebook (Kindle) cover from the same inputs</label>
+  <label class="chk"><input type="checkbox" id="qcRemember" checked> Remember this look (colors, globe position, etc.) for next time</label>
   <div class="btns"><button onclick="quickCreate()">Create My Cover</button></div>
   <div class="hint" id="qcStatus"></div>
   <div class="hint">This fills in the gold title, the globe, and the layout from the "Neopoet Around the Globe" look automatically. Want to fine-tune anything after — size, colors, position — everything below still works too.</div>
@@ -444,9 +446,35 @@ function checkImageApproval(file){
   img.src=URL.createObjectURL(file);
 }
 
+const PRESET_KEY='coverBuilderPreset_v1';
+function getPreset(){
+  try{ const raw=localStorage.getItem(PRESET_KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; }
+}
+function savePreset(){
+  try{
+    localStorage.setItem(PRESET_KEY, JSON.stringify({
+      author:$('cAuthor').value||'',
+      textColor:$('textColor').value,
+      titleAlign:$('titleAlign')?$('titleAlign').value:'center',
+      titleSpacing:$('titleSpacing')?$('titleSpacing').value:'0',
+      accentZoom:$('accentZoom')?$('accentZoom').value:'55',
+      accentPanX:$('accentPanX')?$('accentPanX').value:'0',
+      accentPanY:$('accentPanY')?$('accentPanY').value:'0',
+      artFit:$('artFit')?$('artFit').value:'cover',
+      artScope:$('artScope')?$('artScope').value:'full',
+      bgColor:$('bgColor').value,
+      spineText:$('spineText')?$('spineText').checked:true
+    }));
+  }catch(e){ /* storage unavailable (private window, etc.) — ignore */ }
+}
+function applyPresetToQuickForm(){
+  const p=getPreset();
+  if(p&&p.author&&$('qcAuthor')&&!$('qcAuthor').value) $('qcAuthor').value=p.author;
+}
+
 async function quickCreate(){
   const status=$('qcStatus');
-  const setStatus=(msg,bad)=>{ status.textContent=msg; status.style.color=bad?'var(--bad)':'var(--muted)'; };
+  const setStatus=(html,bad)=>{ status.innerHTML=html; status.style.color=bad?'var(--bad)':'var(--muted)'; };
 
   const title=$('qcTitle').value.trim();
   const pages=parseInt($('qcPages').value,10);
@@ -459,21 +487,45 @@ async function quickCreate(){
 
   setStatus('Building your cover…',false);
 
+  const preset=getPreset()||{};
   if($('binding').value!=='paperback'){ $('binding').value='paperback'; setBinding(); }
   $('pages').value=pages;
   $('cTitle').value=title;
-  $('titleSpacing').value=0;
-  $('titleAlign').value='center';
-  $('cAuthor').value=author||'Neopoet.com';
-  $('textColor').value='#fdfbf6';
+  $('titleSpacing').value=preset.titleSpacing!=null?preset.titleSpacing:0;
+  $('titleAlign').value=preset.titleAlign||'center';
+  $('cAuthor').value=author||preset.author||'Neopoet.com';
+  $('textColor').value=preset.textColor||'#fdfbf6';
+  if($('spineText')&&preset.spineText!=null) $('spineText').checked=preset.spineText;
 
   const [accentOk,artOk]=await Promise.all([loadAccentDefault(),loadArtFile(file)]);
+  if(preset.accentZoom!=null&&$('accentZoom')) $('accentZoom').value=preset.accentZoom;
+  if(preset.accentPanX!=null&&$('accentPanX')) $('accentPanX').value=preset.accentPanX;
+  if(preset.accentPanY!=null&&$('accentPanY')) $('accentPanY').value=preset.accentPanY;
+  if(preset.artFit&&$('artFit')) $('artFit').value=preset.artFit;
   renderPreview();
 
   if(!accentOk){ setStatus("Cover built, but the globe image couldn't load — try reloading the page.",true); return; }
   if(!artOk){ setStatus("Couldn't read that background photo — try a different file.",true); return; }
 
-  setStatus('Your cover is ready below — scroll down to preview it and download the PDF.',false);
+  if($('qcRemember')&&$('qcRemember').checked) savePreset();
+
+  let note='';
+  try{
+    const d=dims(); const {edge,safety,hinge}=edgeVals(d);
+    const legibility=legibilityCheck(d,edge,safety,hinge);
+    if(legibility&&(legibility.contrast.cls!=='ok'||legibility.busy.cls!=='ok')){
+      note=` Heads up: ${legibility.contrast.cls!=='ok'?legibility.contrast.note:legibility.busy.note} behind the title — check the preview below.`;
+    }
+  }catch(e){}
+
+  if($('qcAlsoEbook')&&$('qcAlsoEbook').checked){
+    try{
+      await buildEbookJPEG({binding:'ebook',coverW:EBOOK_W,coverH:EBOOK_H,px:true});
+      note+=' The ebook cover downloaded too.';
+    }catch(e){ note+=" Couldn't build the ebook cover — try the Download button below once binding is set to Ebook."; }
+  }
+
+  setStatus('Your cover is ready below — scroll down to preview it and download the PDF.'+note,false);
   document.querySelector('.stage')?.scrollIntoView({behavior:'smooth',block:'center'});
 }
 
@@ -836,6 +888,47 @@ function drawAccent(c,x,y,w,h){
 
   drawImageFit(c,accentImg,x,y,w,h,zoom,panX,panY,'contain');
 }
+function sampleRegion(c,x,y,w,h){
+  x=Math.max(0,Math.round(x)); y=Math.max(0,Math.round(y));
+  w=Math.max(1,Math.round(w)); h=Math.max(1,Math.round(h));
+  w=Math.min(w,c.canvas.width-x); h=Math.min(h,c.canvas.height-y);
+  if(w<=0||h<=0) return {lum:.5,sd:0};
+  const data=c.getImageData(x,y,w,h).data;
+  let sum=0,sumSq=0,n=0;
+  for(let i=0;i<data.length;i+=4*7){
+    const l=(0.299*data[i]+0.587*data[i+1]+0.114*data[i+2])/255;
+    sum+=l; sumSq+=l*l; n++;
+  }
+  if(n===0) return {lum:.5,sd:0};
+  const mean=sum/n;
+  return {lum:mean, sd:Math.sqrt(Math.max(0,sumSq/n-mean*mean))};
+}
+function legibilityCheck(d,edge,safety,hinge){
+  if(!artImg && !accentImg) return null;
+  const DPI=90;
+  const cv=document.createElement('canvas');
+  cv.width=Math.round(d.coverW*DPI); cv.height=Math.round(d.coverH*DPI);
+  const c=cv.getContext('2d');
+  const I=v=>v*DPI;
+  const backW=I(edge+d.tw), spineX=backW, spineW=I(d.spine), frontX=spineX+spineW, frontW=I(d.tw+edge);
+  c.fillStyle=$('bgColor').value; c.fillRect(0,0,cv.width,cv.height);
+  if(artImg){
+    if(artScope==='full') drawCover(c,artImg,0,0,cv.width,cv.height);
+    else drawCover(c,artImg,frontX,0,frontW,cv.height);
+  }
+  if(accentImg) drawAccent(c,frontX,0,frontW,cv.height);
+
+  const r=sampleRegion(c, frontX+I(.3), I(8.5*.08), frontW-I(.6), I(2.6));
+  const goldLum=0.62;
+  const gap=Math.abs(r.lum-goldLum);
+  const contrast = gap>0.22 ? {cls:'ok',note:'good contrast behind the title'}
+    : gap>0.12 ? {cls:'warn',note:'a bit close in tone to the gold title — still readable, worth a look'}
+    : {cls:'bad',note:'very close in brightness to the gold title — may be hard to read there'};
+  const busy = r.sd<0.09 ? {cls:'ok',note:'calm background behind the title'}
+    : r.sd<0.16 ? {cls:'warn',note:'somewhat busy there — fine, but a plainer spot would read cleaner'}
+    : {cls:'bad',note:'very busy/high-detail there — the title may get lost in it'};
+  return {contrast,busy};
+}
 function renderChecks(d){
   const rows=[];
   const add=(k,v,cls)=>rows.push(`<li><span class="k">${k}</span><span class="v ${cls}">${v}</span></li>`);
@@ -865,6 +958,14 @@ function renderChecks(d){
     const note=dpi>=250?'sharp at this size':dpi>=120?'a little soft, but usable':'will look blurry/pixelated printed — zoom out or use a higher-res photo';
     add('Image resolution at this crop',`≈${Math.round(dpi)} dpi — ${note}`,cls);
   }
+  if(artImg||accentImg){
+    const {edge,safety,hinge}=edgeVals(d);
+    const legibility=legibilityCheck(d,edge,safety,hinge);
+    if(legibility){
+      add('Title contrast',legibility.contrast.note,legibility.contrast.cls);
+      add('Title area busyness',legibility.busy.note,legibility.busy.cls);
+    }
+  }
   add('Spine text',d.pages>=SPINE_TEXT_MIN_PAGES?'shown — book qualifies':'hidden — KDP needs 79+ pages',
       d.pages>=SPINE_TEXT_MIN_PAGES?'ok':'warn');
   add('Barcode area','kept clear, bottom-right of back cover','ok');
@@ -877,19 +978,29 @@ async function buildOutput(){
   await buildPDF(d);
 }
 async function buildEbookJPEG(d){
+  // Reuses the same gold-title/globe styling as the print cover, scaled to
+  // the flat single-image ebook canvas, instead of the old plain-text
+  // rendering that ignored the template look entirely.
+  if(document.fonts&&document.fonts.ready) await document.fonts.ready;
   const cv=document.createElement('canvas');
   cv.width=d.coverW; cv.height=d.coverH;
   const c=cv.getContext('2d');
+  const DPI=300; // EBOOK_W/H were chosen close to a 300dpi standard trim
+  const I=v=>v*DPI;
   const bg=$('bgColor').value, tc=$('textColor').value;
   const serif='"Lora","Times New Roman",Times,serif';
+
   c.fillStyle=bg; c.fillRect(0,0,cv.width,cv.height);
-  if(artImg)drawCover(c,artImg,0,0,cv.width,cv.height);
+  if(artImg) drawCover(c,artImg,0,0,cv.width,cv.height);
+  if(accentImg) drawAccent(c,0,0,cv.width,cv.height);
+
+  const liveW=cv.width*.82;
+  const titleAlign=$('titleAlign')?$('titleAlign').value:'center';
+  const titleX=titleAlign==='left'?cv.width*.09:cv.width/2;
+  const titleSpacing=($('titleSpacing')?+$('titleSpacing').value:0)/1000;
+  let fy=drawGoldTitle(c,$('cTitle').value,titleX,I(8.5*.13),liveW,I(.78),titleAlign,tc,I,titleSpacing);
   c.fillStyle=tc; c.textAlign='center';
   applyTextShadowPx(c,tc,cv.width*.0028,cv.width*.001);
-  const liveW=cv.width*.82;
-  let fy=cv.height*.4;
-  c.font=`bold ${cv.width*.1}px ${serif}`;
-  fy=drawWrapped(c,$('cTitle').value,cv.width/2,cv.height*.38,liveW,cv.width*.115);
   if($('cSub').value.trim()){
     c.font=`italic ${cv.width*.05}px ${serif}`;
     fy=drawWrapped(c,$('cSub').value,cv.width/2,fy+cv.width*.03,liveW,cv.width*.065);
@@ -935,6 +1046,7 @@ function fillTrims(){
   if([...sel.options].some(o=>o.value===prevVal))sel.value=prevVal;
 }
 fillTrims();
+applyPresetToQuickForm();
 ['trim','pages','paper','textColor','cTitle','cSub','cAuthor','cBlurb','spineText','showGuides','bgColor','artScope',
  'textShadow','artZoom','artPanX','artPanY','artFit','accentZoom','accentPanX','accentPanY',
  'titlePos','authorPos','blurbPos','spinePos','titleAlign','titleSpacing']
