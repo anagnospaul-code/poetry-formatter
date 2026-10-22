@@ -237,7 +237,7 @@ the Globe</textarea>
           <option value="left">Left-aligned (classic spine-to-edge look)</option>
         </select>
       </div>
-      <div class="fld"><label>Subtitle (optional)</label><input type="text" id="cSub" value=""></div>
+      <div class="fld"><label>Subtitle (optional)</label><input type="text" id="cSub" value="Fifth Edition"></div>
       <div class="fld"><label>Author / editor</label><input type="text" id="cAuthor" value="Neopoet.com"></div>
       <div class="fld" id="blurbFld"><label>Back-cover blurb</label><textarea id="cBlurb">A gathering of voices from every corner of the world — the poems Neopoet's own writers chose to carry across the year.</textarea></div>
       <label class="chk" id="spineTextFld"><input type="checkbox" id="spineText" checked> Title on the spine (KDP only prints spine text past 79 pages)</label>
@@ -631,6 +631,7 @@ async function quickCreate(){
   $('titleSpacing').value=preset.titleSpacing!=null?preset.titleSpacing:0;
   $('titleAlign').value=preset.titleAlign||'center';
   $('cAuthor').value=author||preset.author||'Neopoet.com';
+  if(!$('cSub').value.trim()) $('cSub').value='Fifth Edition';
   $('textColor').value=preset.textColor||'#fdfbf6';
   if($('spineText')&&preset.spineText!=null) $('spineText').checked=preset.spineText;
 
@@ -705,12 +706,12 @@ function renderCoverArt(c,cv,I,d,edge,safety,hinge){
   fy=drawGoldTitle(c,$('cTitle').value,titleX,I(d.th*.13)+titleOff,liveW,I(.78),titleAlign,tc,I,titleSpacing);
   c.fillStyle=tc;
   applyTextShadow(c,I,tc);
-  if($('cSub').value.trim()){
-    c.font=`italic ${I(.17)}px ${serif}`;
-    fy=drawWrapped(c,$('cSub').value,titleX,fy+I(.08),liveW,I(.22),titleAlign);
-  }
   c.font=`${I(.16)}px ${serif}`;
   drawWrapped(c,$('cAuthor').value,frontX+I(d.tw/2)+I(hinge/2),I(d.th*.86)+authorOff,liveW,I(.2),'center');
+  if($('cSub').value.trim()){
+    c.font=`italic ${I(.13)}px ${serif}`;
+    drawWrapped(c,$('cSub').value,frontX+I(d.tw/2)+I(hinge/2),I(d.th*.86)+authorOff+I(.2),liveW,I(.17),'center');
+  }
 
   const backLiveX=I(edge+safety), backLiveW=I(d.tw)-I(edge+safety)-I(hinge)-I(safety);
   c.textAlign='left'; c.font=`${I(.145)}px ${serif}`;
@@ -1228,15 +1229,15 @@ async function buildEbookJPEG(d){
   const titleAlign=$('titleAlign')?$('titleAlign').value:'center';
   const titleX=titleAlign==='left'?cv.width*.09:cv.width/2;
   const titleSpacing=($('titleSpacing')?+$('titleSpacing').value:0)/1000;
-  let fy=drawGoldTitle(c,$('cTitle').value,titleX,I(8.5*.13),liveW,I(.78),titleAlign,tc,I,titleSpacing);
+  drawGoldTitle(c,$('cTitle').value,titleX,I(8.5*.13),liveW,I(.78),titleAlign,tc,I,titleSpacing);
   c.fillStyle=tc; c.textAlign='center';
   applyTextShadowPx(c,tc,cv.width*.0028,cv.width*.001);
-  if($('cSub').value.trim()){
-    c.font=`italic ${cv.width*.05}px ${serif}`;
-    fy=drawWrapped(c,$('cSub').value,cv.width/2,fy+cv.width*.03,liveW,cv.width*.065);
-  }
   c.font=`${cv.width*.045}px ${serif}`;
   drawWrapped(c,$('cAuthor').value,cv.width/2,cv.height*.86,liveW,cv.width*.06);
+  if($('cSub').value.trim()){
+    c.font=`italic ${cv.width*.037}px ${serif}`;
+    drawWrapped(c,$('cSub').value,cv.width/2,cv.height*.86+cv.width*.055,liveW,cv.width*.05);
+  }
 
   const safe=($('cTitle').value||'cover').replace(/[^\w\s-]/g,'').trim().replace(/\s+/g,'-').toLowerCase();
   const blob=await new Promise(res=>cv.toBlob(res,'image/jpeg',.92));
