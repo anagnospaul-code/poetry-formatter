@@ -257,8 +257,10 @@ the Globe</textarea>
       <h2>4 · Check against KDP</h2>
       <ul class="checks" id="checks"></ul>
       <div class="btns" style="margin-top:13px">
+        <button id="fixBtn" type="button" onclick="autoFixIssues()" style="background:#3a5a40">Fix what can be auto-fixed</button>
         <button id="dl" onclick="buildOutput()">Download the cover PDF</button>
       </div>
+      <div id="fixStatus" style="display:none;margin-top:10px;font-size:13px;line-height:1.5;padding:10px 12px;border-radius:8px;background:#1f2b22;border:1px solid #3a5a40"></div>
       <div class="hint" id="dlHint">Upload this as your cover file. KDP prints its own barcode in the bottom-right of the back cover — keep that corner clear, which the dashed box in the preview marks.</div>
     </div>
   </div>
@@ -1219,6 +1221,122 @@ function renderChecks(d){
     }
   }
   $('checks').innerHTML=rows.join('');
+}
+
+// Auto-fixes whatever checklist problems are actually fixable by resetting
+// sliders or nudging image position — never by inventing page counts or
+// swapping in a sharper photo, which only the person can supply.
+function autoFixIssues(){
+  const d=dims();
+  if(d.binding==='ebook'){
+    $('fixStatus').style.display='block';
+    $('fixStatus').textContent='The ebook cover has no position sliders to fix — nothing here needs auto-fixing.';
+    return;
+  }
+  const {edge,safety,hinge}=edgeVals(d);
+  const notes=[];
+  let changedAny=false;
+
+  // 1) "Matches original" drift — the only way these go bad is a title/globe
+  // slider getting nudged off its default, so put them back.
+  let cmp=null;
+  try{ cmp=compareToOriginal(d,edge,safety,hinge); }catch(e){}
+  if(cmp && cmp.some(r=>r.cls!=='ok')){
+    // "Default" here isn't always a flat 100/0 — a saved look (preset) or the
+    // bundled globe graphic has its own correct resting position, so defer to
+    // those instead of a one-size value that would fight the real template.
+    const preset=getPreset()||{};
+    const isDefaultGlobe=accentImg&&/globe-default\.png/i.test(accentImg.src||'');
+    const resetIds={
+      titlePos:0,
+      titleAlign:preset.titleAlign||'center',
+      titleSpacing:preset.titleSpacing!=null?preset.titleSpacing:0,
+      accentZoom:preset.accentZoom!=null?preset.accentZoom:(isDefaultGlobe?55:100),
+      accentPanX:preset.accentPanX!=null?preset.accentPanX:0,
+      accentPanY:preset.accentPanY!=null?preset.accentPanY:0
+    };
+    let resetSomething=false;
+    Object.entries(resetIds).forEach(([id,val])=>{
+      const el=$(id); if(!el) return;
+      if(String(el.value)!==String(val)){ el.value=val; resetSomething=true; }
+    });
+    if(resetSomething){
+      changedAny=true;
+      notes.push('Reset the title and globe position sliders back to their defaults, which is what lines them up with the original.');
+    }
+  }
+
+  // 2) Low image resolution — zooming in on the photo is what drops the dpi,
+  // so zoom back out to the minimum (100%, the sharpest this photo gets here).
+  if(artImg){
+    const areaW=artScope==='full'?d.coverW:(d.tw+edge), areaH=artScope==='full'?d.coverH:d.th;
+    const zEl=$('artZoom');
+    const curZoom=(parseFloat(zEl.value)||100)/100;
+    const curDpi=Math.min(artImg.width/areaW,artImg.height/areaH)/curZoom;
+    if(curDpi<250 && curZoom>1){
+      zEl.value=100;
+      changedAny=true;
+      const newDpi=Math.min(artImg.width/areaW,artImg.height/areaH);
+      notes.push(newDpi>=250
+        ? 'Zoomed the cover photo back out to 100% — it was zoomed in further than the photo could stay sharp at.'
+        : `Zoomed the cover photo out to its sharpest setting here (≈${Math.round(newDpi)} dpi), but even at 100% it's below print-sharp — a higher-resolution photo is the only real fix for that.`);
+    }
+  }
+
+  // 3) Busy/low-contrast title area or a busy barcode corner — try nudging the
+  // photo (and the globe) to a calmer spot and keep whichever position scores best.
+  function badnessScore(){
+    let score=0;
+    try{
+      const leg=(artImg||accentImg)?legibilityCheck(d,edge,safety,hinge):null;
+      if(leg){
+        score+=leg.contrast.cls==='bad'?10:leg.contrast.cls==='warn'?1:0;
+        score+=leg.busy.cls==='bad'?10:leg.busy.cls==='warn'?1:0;
+      }
+    }catch(e){}
+    try{
+      const bc=barcodeAreaCheck(d,edge,safety,hinge);
+      score+=bc.cls==='bad'?10:bc.cls==='warn'?1:0;
+    }catch(e){}
+    return score;
+  }
+
+  // Only the background photo's pan is searched here, never the globe's —
+  // the globe's position is dictated by "matches original" above, and moving
+  // it to dodge a busy patch would just re-break that.
+  if(artImg){
+    const panXEl=$('artPanX'), panYEl=$('artPanY');
+    const origX=panXEl?panXEl.value:'0', origY=panYEl?panYEl.value:'0';
+    const startScore=badnessScore();
+    if(startScore>0){
+      let bestScore=startScore, bestX=origX, bestY=origY;
+      const offsets=[-30,-15,0,15,30];
+      for(const py of offsets){
+        for(const px of [0,-15,15]){
+          if(panYEl) panYEl.value=py;
+          if(panXEl) panXEl.value=px;
+          const s=badnessScore();
+          if(s<bestScore){ bestScore=s; bestX=px; bestY=py; }
+        }
+      }
+      if(panXEl) panXEl.value=origX;
+      if(panYEl) panYEl.value=origY;
+      if(bestScore<startScore){
+        if(panXEl) panXEl.value=bestX;
+        if(panYEl) panYEl.value=bestY;
+        changedAny=true;
+        notes.push(bestScore===0
+          ? 'Nudged the cover photo to a calmer, higher-contrast spot — the busy/contrast flags are clear now.'
+          : 'Nudged the cover photo to a calmer spot — fewer busy/contrast flags than before, though one or two may still be worth a look.');
+      }
+    }
+  }
+
+  renderPreview();
+  $('fixStatus').style.display='block';
+  $('fixStatus').textContent = changedAny
+    ? notes.join(' ')
+    : "Nothing here can be auto-fixed — what's flagged needs a real decision from you (a sharper photo, or the actual page count), not a setting I can reset.";
 }
 
 async function buildOutput(){
