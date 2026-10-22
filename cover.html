@@ -201,11 +201,22 @@ label.chk input{width:auto}
       </div>
       <div class="fld"><label>Text color</label>
         <div class="swrow">
-          <button class="swatch" data-c="#fdfbf6" style="background:#fdfbf6" onclick="setTextColor(this)"></button>
-          <button class="swatch" data-c="#1d1b18" style="background:#1d1b18" onclick="setTextColor(this)"></button>
-          <button class="swatch" data-c="#d9a92a" style="background:#d9a92a" onclick="setTextColor(this)"></button>
-          <button class="swatch" data-c="#c8a96e" style="background:#c8a96e" onclick="setTextColor(this)"></button>
-          <button class="swatch" data-c="#8a6d3b" style="background:#8a6d3b" onclick="setTextColor(this)"></button>
+          <button class="swatch" data-c="#fdfbf6" style="background:#fdfbf6" onclick="setTextColor(this)" title="Off-white"></button>
+          <button class="swatch" data-c="#1d1b18" style="background:#1d1b18" onclick="setTextColor(this)" title="Near-black"></button>
+          <button class="swatch" data-c="#d9a92a" style="background:#d9a92a" onclick="setTextColor(this)" title="Gold"></button>
+          <button class="swatch" data-c="#c8a96e" style="background:#c8a96e" onclick="setTextColor(this)" title="Tan gold"></button>
+          <button class="swatch" data-c="#8a6d3b" style="background:#8a6d3b" onclick="setTextColor(this)" title="Bronze"></button>
+          <button class="swatch" data-c="#b0b0b0" style="background:#b0b0b0" onclick="setTextColor(this)" title="Silver"></button>
+          <button class="swatch" data-c="#5a5a5a" style="background:#5a5a5a" onclick="setTextColor(this)" title="Charcoal gray"></button>
+          <button class="swatch" data-c="#2f3e46" style="background:#2f3e46" onclick="setTextColor(this)" title="Slate"></button>
+          <button class="swatch" data-c="#1f4e79" style="background:#1f4e79" onclick="setTextColor(this)" title="Navy blue"></button>
+          <button class="swatch" data-c="#2e7d6b" style="background:#2e7d6b" onclick="setTextColor(this)" title="Teal"></button>
+          <button class="swatch" data-c="#3d5a2c" style="background:#3d5a2c" onclick="setTextColor(this)" title="Forest green"></button>
+          <button class="swatch" data-c="#7a2328" style="background:#7a2328" onclick="setTextColor(this)" title="Burgundy"></button>
+          <button class="swatch" data-c="#b5651d" style="background:#b5651d" onclick="setTextColor(this)" title="Copper/rust"></button>
+          <button class="swatch" data-c="#5b3a8e" style="background:#5b3a8e" onclick="setTextColor(this)" title="Plum"></button>
+          <button class="swatch" data-c="#8e3b5b" style="background:#8e3b5b" onclick="setTextColor(this)" title="Rose/mauve"></button>
+          <button class="swatch" data-c="#c0392b" style="background:#c0392b" onclick="setTextColor(this)" title="Deep red"></button>
           <input type="text" id="textColor" value="#fdfbf6" style="width:90px" oninput="renderPreview()">
         </div>
         <label class="chk"><input type="checkbox" id="textShadow" checked> Add a soft shadow behind the text — helps it stay readable over a busy photo</label>
@@ -856,9 +867,17 @@ function hslToHex(h,s,l){
 const GOLD_SOLID='#d9a62a';
 function titleGoldStops(tc){
   let [h,s]=hexToHsl(tc);
-  if(s<0.15)h=0.13;
-  const top=hslToHex(h+0.012,0.92,0.55);
-  const bottom=hslToHex(Math.max(0,h-0.02),0.85,0.44);
+  if(s<0.06){
+    // Truly neutral (white/black/gray) input — render as a silver/pewter metallic
+    // foil instead of forcing gold, so a chosen gray actually looks gray.
+    const top=hslToHex(0.58,0.04,0.80);
+    const bottom=hslToHex(0.58,0.05,0.42);
+    return [top,bottom];
+  }
+  // Any other chosen hue keeps its own color family, just lifted into a
+  // lighter/darker two-tone "foil" gradient rather than a flat fill.
+  const top=hslToHex(h+0.012,0.85,0.56);
+  const bottom=hslToHex(Math.max(0,h-0.02),0.78,0.40);
   return [top,bottom];
 }
 function scLayout(c,words,bigPx,smallPx,family,weight,tracking){
