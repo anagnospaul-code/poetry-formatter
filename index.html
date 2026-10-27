@@ -160,6 +160,15 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
         <div class="hint" id="fileNote"></div>
       </div>
 
+      <div id="bookFilterRow" class="fld" style="margin-top:10px">
+        <label>Splitting this pool into two books? Tag each poem below, then filter here to preview/export just one book at a time.</label>
+        <select id="bookFilter" onchange="renderPreview()">
+          <option value="">Show all poems</option>
+          <option value="book1">Book 1 only</option>
+          <option value="book2">Book 2 only</option>
+          <option value="untagged">Untagged only</option>
+        </select>
+      </div>
       <div id="statusBox"></div>
       <ul class="foundlist" id="foundList" style="display:none"></ul>
     </div>
@@ -192,7 +201,10 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
         <div class="fld"><label>Copyright year</label><input type="text" id="bYear" value="2023"></div>
       </div>
       <div class="row">
-        <div class="fld"><label>ISBN (optional — KDP can assign one free, or use your own)</label><input type="text" id="bISBN" placeholder="e.g. 979-8-xxxxxxx-x-x"></div>
+        <div class="fld"><label>ISBN (optional — pick one of your unused Bowker ISBNs, or let KDP assign one free)</label>
+          <select id="bISBNSelect" onchange="onIsbnSelectChange()"></select>
+          <input type="text" id="bISBN" placeholder="e.g. 979-8-xxxxxxx-x-x" style="margin-top:7px;display:none">
+        </div>
       </div>
       <div class="fld"><label>Dedication or acknowledgments (optional — its own page, right after copyright)</label>
         <textarea id="bDedication" spellcheck="false" style="min-height:70px" placeholder="For everyone who sent us a poem this year."></textarea>
@@ -251,6 +263,29 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
     </div>
   </div>
 </div>
+
+<div class="card" style="margin-top:16px">
+  <h2>4 · Social media image</h2>
+  <div class="cols" style="grid-template-columns:minmax(0,1fr) minmax(0,.8fr)">
+    <div>
+      <div class="fld"><label>Poem</label><select id="smPoem" onchange="renderSocialImage()"></select></div>
+      <div class="fld"><label>Size</label>
+        <select id="smSize" onchange="renderSocialImage()">
+          <option value="square">Square — 1080 × 1080 (feed post)</option>
+          <option value="story">Story — 1080 × 1920 (Story/Reel)</option>
+        </select>
+      </div>
+      <div class="fld"><label>Background color</label><input type="color" id="smBg" value="#1d1b18" oninput="renderSocialImage()" style="width:70px;height:34px;padding:2px"></div>
+      <div class="fld"><label>Background image (optional)</label><input type="file" id="smArt" accept="image/*"></div>
+      <div class="fld"><label>Text color</label><input type="color" id="smText" value="#f3efe6" oninput="renderSocialImage()" style="width:70px;height:34px;padding:2px"></div>
+      <div class="hint">Renders the selected poem's title and text over a background, sized for Instagram/Facebook — handy for Neopoet's social posts. Nothing here affects the book's interior or cover.</div>
+      <div class="btns" style="margin-top:10px"><button class="ghost" onclick="downloadSocialImage()">Download image (PNG)</button></div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:center">
+      <canvas id="smCanvas" style="max-width:100%;border:1px solid var(--line);border-radius:6px"></canvas>
+    </div>
+  </div>
+</div>
 </div>
 
 <script>
@@ -300,6 +335,7 @@ function setMode(m){
   $('tabAll').classList.toggle('active',m==='all');
   $('modeOne').style.display=m==='one'?'block':'none';
   $('modeAll').style.display=m==='all'?'block':'none';
+  $('bookFilterRow').style.display=m==='one'?'block':'none';
   renderPreview();
 }
 function addManualPoem(){
@@ -504,7 +540,12 @@ function anthologyByline(author,username){
 function layout(){
   let entries;
   if(inputMode==='one'){
-    entries=manualPoems;
+    const filterVal=$('bookFilter')?$('bookFilter').value:'';
+    entries=filterVal?manualPoems.filter(e=>{
+      if(e.kind==='section')return true; // keep section headers regardless of tag
+      const tag=e.bookTag||'';
+      return filterVal==='untagged'?!tag:tag===filterVal;
+    }):manualPoems;
     renderStatusOne(entries);
   }else{
     const res=parseAllMode($('src').value);
@@ -530,6 +571,7 @@ function layout(){
         headers:$('optHeaders').checked,
         title:$('bTitle').value,author:$('bAuthor').value,year:$('bYear').value,
         nums:$('optNums').checked};
+  writeSharedBookInfo();
   return BOOK;
 }
 // "brackets" sits beside the title itself, not in a slot below it, so it
@@ -989,13 +1031,15 @@ function renderPreview(){
   $('count').textContent=`pages ${spreadAt+1}–${Math.min(spreadAt+2,total)} of ${total}`;
   $('plabel').textContent=`${b.tw}″ × ${b.th}″ · gutter ${b.gutter}″ · outside ${OUTER}″`;
   renderChecks(b);
-  renderFoundList(b.poems);
+  renderFoundList(inputMode==='one'?manualPoems:b.poems);
+  fillSocialPoemSelect(b.poems);
   saveState();
 }
 function renderFoundList(entries){
   const list=$('foundList');
   if(!entries.length){list.style.display='none';list.innerHTML='';return;}
   list.style.display='block';
+  const filterVal=inputMode==='one'&&$('bookFilter')?$('bookFilter').value:'';
   let n=0;
   list.innerHTML=entries.map((e,i)=>{
     let mv='';
@@ -1006,14 +1050,31 @@ function renderFoundList(entries){
          `<button class="frm" title="Move down" ${dn}>↓</button>`;
     }
     const rm=inputMode==='one'?`<button class="frm" title="Remove" onclick="removeManualPoem(${i})">✕</button>`:'';
+    let tagSel='';
+    let dimmed=false;
+    if(inputMode==='one'&&e.kind==='poem'){
+      const tag=e.bookTag||'';
+      dimmed=!!filterVal&&(filterVal==='untagged'?!!tag:tag!==filterVal);
+      tagSel=`<select class="frm" style="font-size:.78rem" onchange="setBookTag(${i},this.value)">`+
+        `<option value=""${!tag?' selected':''}>No tag</option>`+
+        `<option value="book1"${tag==='book1'?' selected':''}>Book 1</option>`+
+        `<option value="book2"${tag==='book2'?' selected':''}>Book 2</option>`+
+        `</select>`;
+    }
+    const opacityStyle=dimmed?'opacity:.45;':'';
     if(e.kind==='section')
-      return `<li style="font-weight:600;background:var(--accent-soft)">`+
+      return `<li style="${opacityStyle}font-weight:600;background:var(--accent-soft)">`+
         `<span class="ftext">§ ${escapeHtml(e.title)}</span>${mv}${rm}</li>`;
     n++;
-    return `<li><span class="fnum">${n}.</span><span class="ftext">${escapeHtml(e.title)}`+
+    return `<li style="${opacityStyle}"><span class="fnum">${n}.</span><span class="ftext">${escapeHtml(e.title)}`+
       ((e.author||e.username)?` <span class="fauthor">— ${escapeHtml(bylineText(e.author,e.username,e.location))}</span>`:'')+
-      `</span>${mv}${rm}</li>`;
+      `</span>${tagSel}${mv}${rm}</li>`;
   }).join('');
+}
+function setBookTag(i,val){
+  if(!manualPoems[i])return;
+  manualPoems[i].bookTag=val||undefined;
+  renderPreview();
 }
 function turn(d){spreadAt=Math.max(0,spreadAt+d);renderPreview();}
 
@@ -1510,7 +1571,7 @@ buildLocationList();
 // document) is kept in this browser's local storage, so closing the tab,
 // reopening the app, or an update to the app itself doesn't lose your
 // work. It never leaves your device.
-const SAVE_FIELDS=['src','trim','fsize','face','bTitle','bAuthor','bYear','optToc','optRight','optNums','ornament','bISBN','bDedication','optHeaders'];
+const SAVE_FIELDS=['src','trim','fsize','face','bTitle','bAuthor','bYear','optToc','optRight','optNums','ornament','bISBN','bDedication','optHeaders','bookFilter'];
 const STORAGE_KEY='poetryFormatterState_v1';
 function saveState(){
   try{
@@ -1541,8 +1602,180 @@ function loadState(){
   }catch(e){ console.warn('could not restore saved work:',e); }
 }
 
+// ── Your Bowker ISBN pool (pulled from myidentifiers.com on 2026-10-27) ──
+const ISBN_POOL=[
+  {isbn:'978-0-615-78225-6',status:'assigned',title:'Through These Lenses'},
+  {isbn:'978-0-692-23906-3',status:'assigned',title:'Subway Stories'},
+  {isbn:'979-8-9879413-0-0',status:'available'},
+  {isbn:'979-8-9879413-1-7',status:'available'},
+  {isbn:'979-8-9879413-2-4',status:'available'},
+  {isbn:'979-8-9879413-3-1',status:'available'},
+  {isbn:'979-8-9879413-4-8',status:'available'},
+  {isbn:'979-8-9879413-5-5',status:'available'},
+  {isbn:'979-8-9879413-6-2',status:'available'},
+  {isbn:'979-8-9879413-7-9',status:'available'},
+  {isbn:'979-8-9879413-8-6',status:'available'},
+  {isbn:'979-8-9879413-9-3',status:'available'},
+  {isbn:'979-8-9879414-0-9',status:'available'},
+  {isbn:'979-8-9879414-1-6',status:'available'},
+  {isbn:'979-8-9879414-2-3',status:'available'},
+  {isbn:'979-8-9879414-3-0',status:'available'},
+  {isbn:'979-8-9879414-4-7',status:'available'},
+  {isbn:'979-8-9879414-5-4',status:'available'},
+  {isbn:'979-8-9879414-6-1',status:'available'},
+  {isbn:'979-8-9879414-7-8',status:'available'},
+  {isbn:'979-8-9879414-8-5',status:'available'},
+  {isbn:'979-8-9879414-9-2',status:'available'},
+  {isbn:'978-0-692-28066-9',status:'available'},
+];
+function fillIsbnSelect(){
+  const sel=$('bISBNSelect');
+  if(!sel)return;
+  let html=`<option value="">Leave blank — KDP will assign one free</option>`;
+  ISBN_POOL.forEach(e=>{
+    if(e.status==='assigned'){
+      html+=`<option value="${e.isbn}" disabled>${e.isbn} — already used (${e.title})</option>`;
+    }else{
+      html+=`<option value="${e.isbn}">${e.isbn} — available</option>`;
+    }
+  });
+  html+=`<option value="__other__">Type a different ISBN…</option>`;
+  sel.innerHTML=html;
+}
+function onIsbnSelectChange(){
+  const sel=$('bISBNSelect'),txt=$('bISBN');
+  if(sel.value==='__other__'){
+    txt.style.display='block';txt.value='';txt.focus();
+  }else{
+    txt.style.display='none';txt.value=sel.value;
+  }
+  saveState();
+}
+function syncIsbnSelectFromValue(){
+  const sel=$('bISBNSelect'),txt=$('bISBN');
+  if(!sel||!txt)return;
+  const v=txt.value.trim();
+  const known=ISBN_POOL.some(e=>e.isbn===v);
+  if(v&&!known){
+    sel.value='__other__';txt.style.display='block';
+  }else if(v&&known){
+    sel.value=v;txt.style.display='none';
+  }else{
+    sel.value='';txt.style.display='none';
+  }
+}
+
+// ── Share the book's basics with Cover Creator / Merch Designer ──
+// Lets those two tools auto-fill title/author/trim/page-count instead of
+// you re-typing them. Lives only in this browser's local storage.
+const SHARED_BOOK_KEY='bookBuilderShared_v1';
+function writeSharedBookInfo(){
+  try{
+    localStorage.setItem(SHARED_BOOK_KEY,JSON.stringify({
+      title:$('bTitle').value,
+      author:$('bAuthor').value,
+      trim:$('trim').value,
+      pages:BOOK&&BOOK.pages?BOOK.pages.length:null,
+      updated:Date.now()
+    }));
+  }catch(e){ console.warn('could not share book info:',e); }
+}
+
+// ── Social media poem image ──────────────────────────────────────────
+// A simple square/story export of one poem over a color or uploaded
+// background — for Neopoet's social posts, separate from the print cover.
+let socialPoems=[], socialArtImg=null;
+function fillSocialPoemSelect(poems){
+  socialPoems=(poems||[]).filter(p=>p.kind==='poem'&&p.title);
+  const sel=$('smPoem');
+  if(!sel)return;
+  const prev=sel.value;
+  sel.innerHTML=socialPoems.length
+    ? socialPoems.map((p,i)=>`<option value="${i}">${escapeHtml(p.title)}</option>`).join('')
+    : `<option value="">Add a poem first</option>`;
+  if(socialPoems.some((p,i)=>String(i)===prev))sel.value=prev;
+  renderSocialImage();
+}
+function readSocialArtFile(file){
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{ socialArtImg=img; renderSocialImage(); };
+    img.src=reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+function renderSocialImage(){
+  const cv=$('smCanvas');
+  if(!cv||!socialPoems.length)return;
+  const story=$('smSize').value==='story';
+  const W=1080, H=story?1920:1080;
+  cv.width=W;cv.height=H;
+  cv.style.width=story?'260px':'360px';
+  cv.style.height=story?'462px':'360px';
+  const ctx=cv.getContext('2d');
+  // background
+  ctx.fillStyle=$('smBg').value;
+  ctx.fillRect(0,0,W,H);
+  if(socialArtImg){
+    const scale=Math.max(W/socialArtImg.width,H/socialArtImg.height);
+    const iw=socialArtImg.width*scale, ih=socialArtImg.height*scale;
+    ctx.drawImage(socialArtImg,(W-iw)/2,(H-ih)/2,iw,ih);
+    ctx.fillStyle='rgba(0,0,0,.35)';ctx.fillRect(0,0,W,H);
+  }
+  const p=socialPoems[+$('smPoem').value||0];
+  if(!p)return;
+  ctx.fillStyle=$('smText').value;
+  ctx.textAlign='center';
+  // Title
+  ctx.font=`700 54px Georgia,serif`;
+  wrapCanvasText(ctx,p.title,W/2,H*.22,W*.8,64);
+  // Body (first several lines — a social card is a teaser, not the full poem)
+  ctx.font=`italic 34px Georgia,serif`;
+  const lines=(p.lines||[]).filter(l=>l.trim()).slice(0,8);
+  let y=H*.38;
+  lines.forEach(l=>{ wrapCanvasText(ctx,l,W/2,y,W*.78,44); y+=44*Math.max(1,Math.ceil(ctx.measureText(l).width/(W*.78))); });
+  if((p.lines||[]).filter(l=>l.trim()).length>8){
+    ctx.font=`italic 28px Georgia,serif`;ctx.globalAlpha=.75;
+    ctx.fillText('…',W/2,y+10);ctx.globalAlpha=1;
+  }
+  // Author credit
+  if(p.author){
+    ctx.font=`28px Georgia,serif`;ctx.globalAlpha=.85;
+    ctx.fillText('— '+p.author,W/2,H*.9);ctx.globalAlpha=1;
+  }
+  ctx.font=`600 22px Georgia,serif`;ctx.globalAlpha=.6;
+  ctx.fillText('neopoet.com',W/2,H*.96);ctx.globalAlpha=1;
+}
+function wrapCanvasText(ctx,text,cx,y,maxW,lineH){
+  const words=(text||'').split(/\s+/);
+  let line='',ly=y;
+  words.forEach(w=>{
+    const test=line?line+' '+w:w;
+    if(ctx.measureText(test).width>maxW&&line){
+      ctx.fillText(line,cx,ly);line=w;ly+=lineH;
+    }else line=test;
+  });
+  if(line)ctx.fillText(line,cx,ly);
+}
+function downloadSocialImage(){
+  const cv=$('smCanvas');
+  if(!cv||!socialPoems.length)return;
+  cv.toBlob(blob=>{
+    const p=socialPoems[+$('smPoem').value||0];
+    const name=(p&&p.title?p.title.replace(/[^a-z0-9]+/gi,'-'):'poem')+'-social.png';
+    saveFile(name,blob);
+  },'image/png');
+}
+$('smArt')&&$('smArt').addEventListener('change',e=>{
+  const file=e.target.files&&e.target.files[0];
+  if(file)readSocialArtFile(file);
+});
+
 fillTrims();
+fillIsbnSelect();
 loadState();
+syncIsbnSelectFromValue();
 setMode(inputMode);
 SAVE_FIELDS.forEach(id=>{
   const el=$(id);

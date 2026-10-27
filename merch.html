@@ -100,6 +100,9 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
           <option value="tee">Unisex tee</option>
           <option value="hoodie">Hoodie</option>
           <option value="mug">Mug</option>
+          <option value="poster">Poster</option>
+          <option value="tote">Tote bag</option>
+          <option value="sticker">Sticker</option>
         </select>
       </div>
       <div class="fld"><label>Product color</label>
@@ -153,6 +156,9 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
             <option value="tee">Unisex tee</option>
             <option value="hoodie">Hoodie</option>
             <option value="mug">Mug</option>
+            <option value="poster">Poster</option>
+            <option value="tote">Tote bag</option>
+            <option value="sticker">Sticker</option>
           </select>
         </div>
         <div class="fld"><label class="chk" style="display:flex;align-items:center;gap:7px;margin-top:9px">
@@ -174,7 +180,10 @@ const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
 const PRODUCTS={
   tee:{label:'Unisex tee',colors:['#ffffff','#1d1b18','#8a6d3b','#6c8f7a'],area:{x:.30,y:.22,w:.40,h:.46}},
   hoodie:{label:'Hoodie',colors:['#ffffff','#1d1b18','#6c665d','#8a6d3b'],area:{x:.32,y:.30,w:.36,h:.38}},
-  mug:{label:'Mug',colors:['#ffffff','#1d1b18'],area:{x:.30,y:.32,w:.40,h:.34}}
+  mug:{label:'Mug',colors:['#ffffff','#1d1b18'],area:{x:.30,y:.32,w:.40,h:.34}},
+  poster:{label:'Poster',colors:['#ffffff','#f3f1ec'],area:{x:.10,y:.07,w:.80,h:.86}},
+  tote:{label:'Tote bag',colors:['#f3f1ec','#ffffff','#1d1b18','#8a6d3b'],area:{x:.28,y:.30,w:.44,h:.48}},
+  sticker:{label:'Sticker',colors:['#ffffff'],area:{x:.14,y:.14,w:.72,h:.72}}
 };
 let bgColor=PRODUCTS.tee.colors[0];
 let layers=[]; // {id,type,x,y(0-1 center, relative to print area),scale,rot,text,font,size,color,img,w,h}
@@ -265,6 +274,29 @@ function drawSilhouette(kind,color){
     ctx.moveTo(W*.74,H*.34);
     ctx.quadraticCurveTo(W*.93,H*.40,W*.74,H*.62);
     ctx.stroke();
+  }else if(kind==='poster'){
+    // a plain sheet with a thin frame line, resting on an easel-style shadow
+    ctx.fillRect(W*.06,H*.04,W*.88,H*.92);
+    ctx.strokeRect(W*.06,H*.04,W*.88,H*.92);
+    ctx.strokeStyle='rgba(0,0,0,.12)';ctx.lineWidth=6;
+    ctx.strokeRect(W*.095,H*.075,W*.81,H*.85);
+  }else if(kind==='tote'){
+    ctx.beginPath();
+    ctx.moveTo(W*.22,H*.26);
+    ctx.lineTo(W*.78,H*.26);
+    ctx.lineTo(W*.84,H*.90);
+    ctx.lineTo(W*.16,H*.90);
+    ctx.closePath();
+    ctx.fill();ctx.stroke();
+    // handles
+    ctx.lineWidth=W*.03;ctx.strokeStyle='rgba(0,0,0,.18)';
+    ctx.beginPath();ctx.moveTo(W*.36,H*.26);ctx.quadraticCurveTo(W*.36,H*.08,W*.46,H*.08);
+    ctx.lineTo(W*.54,H*.08);ctx.quadraticCurveTo(W*.64,H*.08,W*.64,H*.26);ctx.stroke();
+  }else if(kind==='sticker'){
+    ctx.beginPath();ctx.roundRect(W*.08,H*.08,W*.84,H*.84,W*.1);
+    ctx.fill();ctx.stroke();
+    ctx.setLineDash([5,5]);ctx.strokeStyle='rgba(0,0,0,.15)';
+    ctx.strokeRect(W*.08,H*.08,W*.84,H*.84);ctx.setLineDash([]);
   }
   ctx.restore();
 }
@@ -563,8 +595,19 @@ async function publishToFourthwall(){
     btn.disabled=false;
   }
 }
+// ── Pick up the book's title from the Formatter, if set and this field
+// hasn't been named yet. ──
+const SHARED_BOOK_KEY='bookBuilderShared_v1';
+function syncFromFormatterShared(){
+  let shared;
+  try{ shared=JSON.parse(localStorage.getItem(SHARED_BOOK_KEY)||'null'); }catch(e){ return; }
+  if(!shared||!shared.title)return;
+  const nameEl=document.getElementById('fwName');
+  if(nameEl&&!nameEl.value.trim())nameEl.value=shared.title.split('\n')[0]+' Merch';
+}
 (function init(){
   const savedUser=localStorage.getItem('fw_user'); if(savedUser)document.getElementById('fwUser').value=savedUser;
+  syncFromFormatterShared();
   buildSwatches(); renderStage();
 })();
 </script>

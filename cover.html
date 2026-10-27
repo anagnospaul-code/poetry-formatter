@@ -1412,7 +1412,26 @@ function fillTrims(){
   }).join('');
   if([...sel.options].some(o=>o.value===prevVal))sel.value=prevVal;
 }
+// ── Pick up title/author/trim/pages from the Formatter, if you've set
+// them there and haven't touched these fields here yet. ──
+const SHARED_BOOK_KEY='bookBuilderShared_v1';
+const CB_DEFAULT_TITLE='Neopoet\nAround\nthe Globe';
+function syncFromFormatterShared(){
+  let shared;
+  try{ shared=JSON.parse(localStorage.getItem(SHARED_BOOK_KEY)||'null'); }catch(e){ return; }
+  if(!shared)return;
+  const titleEl=$('cTitle'),authorEl=$('cAuthor'),pagesEl=$('pages'),trimEl=$('trim');
+  if(shared.title&&titleEl.value.trim()===CB_DEFAULT_TITLE)titleEl.value=shared.title;
+  if(shared.author&&authorEl.value==='Neopoet.com')authorEl.value=shared.author;
+  if(shared.pages&&pagesEl.value==='150')pagesEl.value=shared.pages;
+  if(shared.trim&&trimEl){
+    const ok=[...trimEl.options].some(o=>o.value===shared.trim);
+    if(ok)trimEl.value=shared.trim;
+  }
+}
+
 fillTrims();
+syncFromFormatterShared();
 applyPresetToQuickForm();
 refreshRestoreButton();
 ['trim','pages','paper','textColor','cTitle','cSub','cAuthor','cBlurb','spineText','showGuides','bgColor','artScope',
