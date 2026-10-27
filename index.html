@@ -127,8 +127,8 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
       <div id="modeOne">
         <div class="fld"><label>Title of this poem</label><input type="text" id="mTitle" placeholder="e.g. Resurrection"></div>
         <div class="row">
-          <div class="fld"><label>Author (optional — leave blank if it's just yours)</label><input type="text" id="mAuthor" placeholder="e.g. Mark Loiselle"></div>
-          <div class="fld"><label>Neopoet username (optional)</label><input type="text" id="mUsername" placeholder="e.g. mloiselle"></div>
+          <div class="fld"><label>Author (optional — leave blank if it's just yours)</label><input type="text" id="mAuthor" list="mAuthorList" placeholder="e.g. Mark Loiselle" autocomplete="off"><datalist id="mAuthorList"></datalist></div>
+          <div class="fld"><label>Neopoet username (optional)</label><input type="text" id="mUsername" list="mUsernameList" placeholder="e.g. mloiselle" autocomplete="off"><datalist id="mUsernameList"></datalist></div>
         </div>
         <div class="fld"><label>Location (optional — shown under the byline, e.g. for the "Corner brackets" ornament)</label><input type="text" id="mLocation" list="mLocationList" placeholder="e.g. Massachusetts, United States" autocomplete="off"><datalist id="mLocationList"></datalist></div>
         <div class="fld"><label>Paste this one poem's text (copy it from the Neopoet page or the author's submission)</label>
@@ -349,8 +349,10 @@ function addManualPoem(){
   const lines=body.replace(/\r\n?/g,'\n').split('\n');
   while(lines.length&&!lines[0].trim())lines.shift();
   while(lines.length&&!lines[lines.length-1].trim())lines.pop();
-  manualPoems.push({kind:'poem',title,author:$('mAuthor').value.trim(),username:$('mUsername').value.trim(),
+  const authorName=$('mAuthor').value.trim(), authorUser=$('mUsername').value.trim();
+  manualPoems.push({kind:'poem',title,author:authorName,username:authorUser,
     location:$('mLocation').value.trim(),lines});
+  rememberAuthor(authorName,authorUser);
   $('mTitle').value='';$('mAuthor').value='';$('mUsername').value='';$('mLocation').value='';$('mBody').value='';
   $('mTitle').focus();
   renderPreview();
@@ -552,6 +554,7 @@ function layout(){
     entries=res.entries;
     renderStatusAll(res);
   }
+  harvestAuthors(entries);
   const [tw,th]=$('trim').value.split('x').map(Number);
   const fs=parseFloat($('fsize').value);
   const face=$('face').value;
@@ -1566,6 +1569,48 @@ function buildLocationList(){
   dl.innerHTML=opts.map(o=>`<option value="${escapeHtml(o)}">`).join('');
 }
 buildLocationList();
+
+// ── Remembered authors/usernames ─────────────────────────────────────
+// Every author name and Neopoet username you've typed in before is saved
+// here (in this browser only) and offered as you type a new one.
+const KNOWN_AUTHORS_KEY='poetryFormatterAuthors_v1';
+function loadKnownAuthors(){
+  try{
+    const raw=JSON.parse(localStorage.getItem(KNOWN_AUTHORS_KEY)||'null');
+    if(raw&&Array.isArray(raw.names)&&Array.isArray(raw.usernames))return raw;
+  }catch(e){}
+  return {names:[],usernames:[]};
+}
+function rememberAuthor(name,username){
+  const known=loadKnownAuthors();
+  if(name&&!known.names.includes(name))known.names.push(name);
+  if(username&&!known.usernames.includes(username))known.usernames.push(username);
+  try{ localStorage.setItem(KNOWN_AUTHORS_KEY,JSON.stringify(known)); }catch(e){}
+  buildAuthorLists();
+}
+function harvestAuthors(entries){
+  const known=loadKnownAuthors();
+  let changed=false;
+  (entries||[]).forEach(e=>{
+    if(e.kind!=='poem')return;
+    const n=(e.author||'').trim(),u=(e.username||'').trim();
+    if(n&&!known.names.includes(n)){known.names.push(n);changed=true;}
+    if(u&&!known.usernames.includes(u)){known.usernames.push(u);changed=true;}
+  });
+  if(changed){
+    try{ localStorage.setItem(KNOWN_AUTHORS_KEY,JSON.stringify(known)); }catch(e){}
+    buildAuthorLists();
+  }
+}
+function buildAuthorLists(){
+  const known=loadKnownAuthors();
+  const nameDl=$('mAuthorList'),userDl=$('mUsernameList');
+  if(nameDl)nameDl.innerHTML=known.names.slice().sort((a,b)=>a.localeCompare(b))
+    .map(n=>`<option value="${escapeHtml(n)}">`).join('');
+  if(userDl)userDl.innerHTML=known.usernames.slice().sort((a,b)=>a.localeCompare(b))
+    .map(u=>`<option value="${escapeHtml(u)}">`).join('');
+}
+buildAuthorLists();
 
 // Autosave: everything you've entered (poems, book details, the pasted
 // document) is kept in this browser's local storage, so closing the tab,
