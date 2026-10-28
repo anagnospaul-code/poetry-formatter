@@ -1590,9 +1590,11 @@ function buildLocationList(){
   known.locations.slice().sort((a,b)=>a.localeCompare(b)).forEach(l=>{
     if(!seen.has(l.toLowerCase())){opts.push(l);seen.add(l.toLowerCase());}
   });
-  WORLD_COUNTRIES.forEach(c=>{if(!seen.has(c.toLowerCase())){opts.push(c);seen.add(c.toLowerCase());}});
   US_STATES.forEach(s=>{const v=s+', United States';if(!seen.has(v.toLowerCase())){opts.push(v);seen.add(v.toLowerCase());}});
-  WORLD_CITIES.forEach(([city,country])=>{const v=city+', '+country;if(!seen.has(v.toLowerCase())){opts.push(v);seen.add(v.toLowerCase());}});
+  WORLD_CITIES.forEach(([city,country])=>{
+    if(country==='United States')return; // US entries are states only, not cities
+    const v=city+', '+country;if(!seen.has(v.toLowerCase())){opts.push(v);seen.add(v.toLowerCase());}
+  });
   dl.innerHTML=opts.map(o=>`<option value="${escapeHtml(o)}">`).join('');
 }
 
