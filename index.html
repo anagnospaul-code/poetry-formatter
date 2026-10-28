@@ -170,6 +170,9 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
         </select>
       </div>
       <div id="statusBox"></div>
+      <div class="btns" style="margin-top:6px">
+        <button class="ghost" id="undoBtn" onclick="undoLast()" disabled title="Nothing to undo">↶ Undo last change</button>
+      </div>
       <ul class="foundlist" id="foundList" style="display:none"></ul>
     </div>
 
@@ -243,6 +246,7 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
     <div class="card">
       <h2>3 · Check against KDP</h2>
       <ul class="checks" id="checks"></ul>
+      <div class="hint" id="lengthWarnings" style="display:none;color:var(--warn)"></div>
       <div class="btns" style="margin-top:13px">
         <button id="dl" onclick="buildPDF()">Download the interior PDF</button>
         <button class="ghost" id="dlEpub" onclick="buildEPUB()">Download the EPUB (for Kindle ebook)</button>
@@ -291,15 +295,23 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
   <h2>5 · Backlog from past anthologies</h2>
   <div class="hint" id="blCount"></div>
   <div class="fld"><label>Search by title or author</label><input type="text" id="blSearch" placeholder="e.g. Guy Caswell, or a poem title" oninput="renderBacklog()"></div>
+  <div class="btns" style="margin-top:6px">
+    <button class="ghost" onclick="exportBacklogCSV()">Export backlog (CSV)</button>
+    <button class="ghost" onclick="exportAuthorDataJSON()">Export author data (JSON backup)</button>
+  </div>
   <ul class="foundlist" id="blList" style="max-height:340px;overflow-y:auto"></ul>
 </div>
 
 <div class="card" style="margin-top:16px">
   <h2>6 · Release forms</h2>
   <div class="hint" id="rfCount"></div>
+  <div class="hint" id="rfBanner" style="display:none;color:var(--warn);font-weight:600"></div>
   <div class="fld"><label>Search by title or author</label><input type="text" id="rfSearch" placeholder="e.g. a poem title or author" oninput="renderReleaseForms()"></div>
+  <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:6px">
+    <input type="checkbox" id="rfUnusedOnly" onchange="renderReleaseForms()" style="width:auto"> Show not-yet-used only (oldest first)
+  </label>
   <ul class="foundlist" id="rfList" style="max-height:340px;overflow-y:auto"></ul>
-  <div class="hint">"Prefill" fills in the Title, Author and Location fields above from the release so you only need to paste the poem's text and click "Add this poem to the book." A ✓ means a poem with that title is already in this book.</div>
+  <div class="hint">"Prefill" fills in the Title, Author and Location fields above from the release so you only need to paste the poem's text and click "Add this poem to the book." A ✓ means a poem with that title is already in this book. Forms signed more than 6 months ago with no matching poem yet are highlighted.</div>
 </div>
 </div>
 
@@ -330,6 +342,24 @@ const OUTER=.6, TOPM=.75, BOTM=.7;
 const $=id=>document.getElementById(id);
 let BOOK=null, spreadAt=0;
 let inputMode='one', manualPoems=[];
+let undoStack=[];
+function snapshotManualPoems(){
+  undoStack.push(JSON.parse(JSON.stringify(manualPoems)));
+  if(undoStack.length>5)undoStack.shift();
+  updateUndoButton();
+}
+function undoLast(){
+  if(!undoStack.length)return;
+  manualPoems=undoStack.pop();
+  updateUndoButton();
+  renderPreview();
+}
+function updateUndoButton(){
+  const btn=$('undoBtn');
+  if(!btn)return;
+  btn.disabled=!undoStack.length;
+  btn.title=undoStack.length?`Undo the last ${undoStack.length>1?'of '+undoStack.length+' changes':'change'}`:'Nothing to undo';
+}
 
 // Hand a generated file to the viewer.
 async function saveFile(filename,blob){
@@ -366,6 +396,7 @@ function addManualPoem(){
   while(lines.length&&!lines[lines.length-1].trim())lines.pop();
   let authorName=$('mAuthor').value.trim(), authorUser=$('mUsername').value.trim();
   if(!authorName&&authorUser)authorName=authorUser; // no full name given: use the Neopoet username for both
+  snapshotManualPoems();
   manualPoems.push({kind:'poem',title,author:authorName,username:authorUser,
     location:$('mLocation').value.trim(),lines});
   rememberAuthor(authorName,authorUser);
@@ -383,14 +414,16 @@ function addManualSection(){
       `<div>Give the section a name first.</div></div>`;
     return;
   }
+  snapshotManualPoems();
   manualPoems.push({kind:'section',title});
   $('mSection').value='';
   renderPreview();
 }
-function removeManualPoem(i){ manualPoems.splice(i,1); renderPreview(); }
+function removeManualPoem(i){ snapshotManualPoems(); manualPoems.splice(i,1); renderPreview(); }
 function moveManualPoem(i,dir){
   const j=i+dir;
   if(j<0||j>=manualPoems.length)return;
+  snapshotManualPoems();
   [manualPoems[i],manualPoems[j]]=[manualPoems[j],manualPoems[i]];
   renderPreview();
 }
@@ -1108,6 +1141,10 @@ function renderChecks(b){
   const pages=b.pages.length;
   const rows=[];
   const add=(k,v,cls)=>rows.push(`<li><span class="k">${k}</span><span class="v ${cls}">${v}</span></li>`);
+  const poemsOnly=b.poems.filter(p=>p.kind==='poem');
+  const totalLines=poemsOnly.reduce((n,p)=>n+(p.lines?p.lines.length:0),0);
+  add('Poems',`${poemsOnly.length}`,'ok');
+  add('Total lines',`${totalLines}`,'ok');
   add('Trim size',`${b.tw}″ × ${b.th}″`,'ok');
   add('Page count',`${pages}`,
       pages<KDP_MIN_PAGES?'bad':pages>KDP_MAX_PAGES?'bad':'ok');
@@ -1124,6 +1161,20 @@ function renderChecks(b){
   add('Longest poem line',`${longest.toFixed(2)}″ in a ${(b.tw-b.gutter-OUTER).toFixed(2)}″ measure`,
       longest<=b.tw-b.gutter-OUTER?'ok':'warn');
   $('checks').innerHTML=rows.join('');
+  const avgLines=poemsOnly.length?totalLines/poemsOnly.length:0;
+  const shortMin=2, longMax=Math.max(60,Math.round(avgLines*3));
+  const odd=poemsOnly.filter(p=>{const n=(p.lines||[]).filter(l=>l.trim()).length;return n<shortMin||n>longMax;})
+    .map(p=>`“${p.title}” (${(p.lines||[]).filter(l=>l.trim()).length} lines)`);
+  const warnEl=$('lengthWarnings');
+  if(warnEl){
+    if(odd.length){
+      warnEl.style.display='block';
+      warnEl.innerHTML=`⚠ Unusually ${odd.length===1?'short/long poem':'short/long poems'} — worth a quick look in case something pasted wrong: `+
+        odd.slice(0,8).map(escapeHtml).join('; ')+(odd.length>8?` …and ${odd.length-8} more`:'');
+    }else{
+      warnEl.style.display='none';warnEl.innerHTML='';
+    }
+  }
 }
 function longestLineInches(b){
   const cv=document.createElement('canvas');const c=cv.getContext('2d');
@@ -1774,11 +1825,34 @@ function renderBacklog(){
       `<button class="frm" title="Add to this book" onclick="addFromBacklog(${origIdx})">+ Add</button></li>`;
   }).join('')||`<li><span class="ftext" style="color:var(--muted)">No matches.</span></li>`;
 }
+function csvCell(v){
+  v=(v===undefined||v===null)?'':String(v);
+  return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;
+}
+async function exportBacklogCSV(){
+  const header=['title','author','username','location','source'];
+  const rows=[header.join(',')].concat(BACKLOG_POEMS.map(p=>
+    [p.title,p.author,p.username,p.location,p.source].map(csvCell).join(',')));
+  const blob=new Blob([rows.join('\n')],{type:'text/csv'});
+  await saveFile('poetry-formatter-backlog.csv',blob);
+}
+async function exportAuthorDataJSON(){
+  const payload={
+    exportedAt:new Date().toISOString(),
+    authors:loadKnownAuthors(),
+    locations:loadKnownLocations(),
+    authorLocations:loadAuthorLocations(),
+    authorUsernames:loadAuthorUsernames()
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  await saveFile('poetry-formatter-author-data.json',blob);
+}
 function addFromBacklog(i){
   const p=BACKLOG_POEMS[i];
   if(!p)return;
   if(inputMode!=='one')setMode('one');
   const author=p.author||p.username; // no full name on file: use the Neopoet username for both
+  snapshotManualPoems();
   manualPoems.push({kind:'poem',title:p.title,author,username:p.username,location:p.location,
     lines:p.lines.slice()});
   rememberAuthor(author,p.username);
@@ -1798,16 +1872,42 @@ renderBacklog();
 // date the author agreed. "Prefill" copies title/author/location into
 // the poem fields above so you just paste the poem text and add it.
 const RELEASE_FORMS=[{"title": "Taboo", "author": "Jenaveve", "username": "", "location": "Pasadena, CA, USA", "date_agreed": "2026-10-14", "submitted_on": "Wed, 10/14/2026 - 03:29"}, {"title": "Unknown", "author": "Vera Fisher", "username": "", "location": "Great Falls, USA", "date_agreed": "2026-10-17", "submitted_on": "Sat, 10/17/2026 - 14:12"}, {"title": "Ferryman, Oh Ferryman", "author": "Candlewitch", "username": "", "location": "Saint Croix Falls Wisconsin, U.S. of A.", "date_agreed": "2026-10-08", "submitted_on": "Thu, 10/08/2026 - 07:11"}, {"title": "Matthew, Mary, Mark and Me", "author": "John B", "username": "", "location": "Brantford, Ontario, Canada", "date_agreed": "2026-10-04", "submitted_on": "Sun, 10/04/2026 - 10:43"}, {"title": "muse", "author": "Frederick Kesner", "username": "crypticbard", "location": "Ipswich, Australia", "date_agreed": "2026-09-13", "submitted_on": "Sun, 09/13/2026 - 15:09"}, {"title": "Holliday and Ringo", "author": "Ray Bear", "username": "", "location": "Sydney New South Wales, Australia", "date_agreed": "2026-09-30", "submitted_on": "Wed, 09/30/2026 - 19:36"}, {"title": "Matthew, Mary, Mark, and Me", "author": "John Buszchak", "username": "", "location": "Brantford, Ontario, Canada", "date_agreed": "2026-09-28", "submitted_on": "Mon, 09/28/2026 - 18:45"}, {"title": "I Was There", "author": "KJax", "username": "", "location": "Pennsylvania, United States", "date_agreed": "2026-10-01", "submitted_on": "Thu, 10/01/2026 - 21:11"}, {"title": "Encounter", "author": "Jenaveve", "username": "", "location": "Pasadena CA, United States", "date_agreed": "2026-10-01", "submitted_on": "Thu, 10/01/2026 - 02:26"}, {"title": "Tricked by the Trees", "author": "Lorne Murphy", "username": "", "location": "Burlington, Ontario, Canada", "date_agreed": "2026-09-19", "submitted_on": "Sat, 09/19/2026 - 15:24"}, {"title": "Emerald and Ice", "author": "Ray Bear", "username": "", "location": "Sydney / New South Wales, Australia", "date_agreed": "2026-09-07", "submitted_on": "Mon, 09/07/2026 - 14:55"}, {"title": "Crickets and Stars", "author": "Rick Hobbs", "username": "", "location": "Mariposa, California, United States", "date_agreed": "2026-09-01", "submitted_on": "Tue, 09/01/2026 - 16:37"}, {"title": "Destiny Flows", "author": "Human Cultist", "username": "", "location": "Uttarakhand, India", "date_agreed": "2026-08-30", "submitted_on": "Sun, 08/30/2026 - 01:04"}, {"title": "restless 2 a.m. thoughts", "author": "Anna Severchuk", "username": "", "location": "Odesa, Ukraine", "date_agreed": "2026-09-03", "submitted_on": "Thu, 09/03/2026 - 21:24"}, {"title": "Peeking Moon", "author": "Tara Salo", "username": "", "location": "Haverhill, United Kingdom", "date_agreed": "2026-08-22", "submitted_on": "Sat, 08/22/2026 - 22:24"}, {"title": "The Embers Burn Low", "author": "Ray Bear", "username": "", "location": "Sydney , New South Wales, Australia", "date_agreed": "2026-06-02", "submitted_on": "Tue, 06/02/2026 - 11:03"}, {"title": "Beach memory", "author": "Gemma Hesse", "username": "", "location": "Bradford, United Kingdom", "date_agreed": "2026-06-02", "submitted_on": "Tue, 06/02/2026 - 18:06"}, {"title": "I don’t want to be saved from it.", "author": "C.P Goehl", "username": "", "location": "Buena Vista, Colorado, United States", "date_agreed": "2026-05-14", "submitted_on": "Thu, 05/14/2026 - 18:48"}, {"title": "Almost is Enough", "author": "Kristen Priego", "username": "", "location": "Georgia, United States", "date_agreed": "2026-05-04", "submitted_on": "Mon, 05/04/2026 - 21:27"}, {"title": "The cave into your heart", "author": "Jana Charvotová", "username": "", "location": "Karviná, Czech Republic", "date_agreed": "2026-04-19", "submitted_on": "Sun, 04/19/2026 - 12:43"}, {"title": "Almost Glass", "author": "Ray Bear", "username": "", "location": "Sydney New South Wales, Australia", "date_agreed": "2026-04-20", "submitted_on": "Mon, 04/20/2026 - 17:46"}, {"title": "A Brief Forever", "author": "Ray Bear", "username": "", "location": "Sydney New South Wales, Australia", "date_agreed": "2026-04-05", "submitted_on": "Sun, 04/05/2026 - 18:23"}, {"title": "Empowerment", "author": "Rita McDermott", "username": "", "location": "Harveys Lake, PA, United States", "date_agreed": "2026-03-31", "submitted_on": "Tue, 03/31/2026 - 11:57"}, {"title": "Puppet", "author": "Despina Aeraki", "username": "", "location": "Herakleion/Crete, Greece", "date_agreed": "2026-03-30", "submitted_on": "Mon, 03/30/2026 - 02:40"}, {"title": "Mami", "author": "Eliza", "username": "", "location": "Dunedin, Otago, New Zealand", "date_agreed": "2026-04-04", "submitted_on": "Sat, 04/04/2026 - 23:48"}, {"title": "Groundhog Day Shuffle", "author": "William Lynn", "username": "", "location": "Inkom / Idaho, United States", "date_agreed": "2026-04-02", "submitted_on": "Thu, 04/02/2026 - 20:14"}, {"title": "WAR ALL THE TIME", "author": "Dipak Sen", "username": "", "location": "NOTTINGHAM, UNITED KINGDOM", "date_agreed": "2026-03-22", "submitted_on": "Sun, 03/22/2026 - 06:46"}, {"title": "MEMORIES OF YOUNG LOVE", "author": "Ian Frank Rolf", "username": "", "location": "Sandown, England", "date_agreed": "2026-03-04", "submitted_on": "Wed, 03/04/2026 - 09:43"}, {"title": "The Love Of Hoarding", "author": "Candlewitch (Caitlin M. Mattison)", "username": "", "location": "Saint Croix Falls WI, United States of America", "date_agreed": "2026-03-04", "submitted_on": "Wed, 03/04/2026 - 18:09"}, {"title": "The Box", "author": "William T Lynn", "username": "", "location": "Inkom, United States", "date_agreed": "2026-01-24", "submitted_on": "Sat, 01/24/2026 - 21:45"}, {"title": "Gift of Nature", "author": "Mary Derringer", "username": "", "location": "Louisville, Kentucky, United States", "date_agreed": "2025-07-04", "submitted_on": "Fri, 07/04/2025 - 14:20"}, {"title": "Let the Child Dream", "author": "Shadrach Okpanachi (Sheddie)", "username": "", "location": "Lagos, Nigeria", "date_agreed": "2026-01-18", "submitted_on": "Mon, 01/19/2026 - 05:21"}, {"title": "Whispers from the Bridge", "author": "Mary Derringer", "username": "", "location": "Louisville, KY, United States", "date_agreed": "2026-01-18", "submitted_on": "Sun, 01/18/2026 - 13:33"}, {"title": "Secret Agent", "author": "Walter Rivas", "username": "", "location": "Bakersfield, California, United States", "date_agreed": "2026-02-08", "submitted_on": "Sun, 02/08/2026 - 17:16"}, {"title": "A Poem Wothout", "author": "Walter Rivas", "username": "", "location": "Bakersfield, California, United States", "date_agreed": "2026-01-11", "submitted_on": "Sun, 01/11/2026 - 11:20"}, {"title": "Numb", "author": "Merryn Browne", "username": "", "location": "Hobart TAS, Aus", "date_agreed": "2026-01-09", "submitted_on": "Fri, 01/09/2026 - 20:18"}, {"title": "Conspiritors in the dark", "author": "Candlewitch", "username": "Caitlin M. Mattison", "location": "Saint Croix Falls Wisconsin, United States of America", "date_agreed": "2026-01-08", "submitted_on": "Thu, 01/08/2026 - 09:38"}, {"title": "eternal", "author": "Kevin Bloor", "username": "", "location": "Buxton, United Kingdom", "date_agreed": "2026-01-06", "submitted_on": "Tue, 01/06/2026 - 21:22"}, {"title": "Empowerment", "author": "Rita McDermott", "username": "", "location": "Harveys Lake, PA, United States", "date_agreed": "2026-02-01", "submitted_on": "Sun, 02/01/2026 - 11:45"}, {"title": "Winter Kills", "author": "Ian Frank Rolf", "username": "", "location": "Sandown, England", "date_agreed": "2026-01-04", "submitted_on": "Sun, 01/04/2026 - 21:25"}, {"title": "If my body was a car", "author": "Steve McDougall", "username": "", "location": "Cape Breton, Canada", "date_agreed": "2026-01-20", "submitted_on": "Tue, 01/20/2026 - 08:07"}, {"title": "Evolution of a Shadow", "author": "Paula Frew", "username": "", "location": "Louisville, Kentucky, United States", "date_agreed": "2026-01-16", "submitted_on": "Fri, 01/16/2026 - 05:51"}, {"title": "test submission by Andrew for testing only", "author": "Andrew", "username": "", "location": "New York, USA", "date_agreed": "2026-01-02", "submitted_on": "Fri, 01/02/2026 - 11:54"}, {"title": "Beyond The Mirror", "author": "William T Lynn", "username": "", "location": "Inkom, United States", "date_agreed": "2025-12-07", "submitted_on": "Sun, 12/07/2025 - 08:15"}, {"title": "Chronically me", "author": "Karen Burns", "username": "", "location": "Coventry, United Kingdom", "date_agreed": "2025-11-07", "submitted_on": "Fri, 11/07/2025 - 23:19"}, {"title": "What About Tomorrow?", "author": "William T Lynn", "username": "", "location": "Inkom, United States", "date_agreed": "2025-12-21", "submitted_on": "Sun, 12/21/2025 - 08:34"}, {"title": "Crimson Colours", "author": "Shamiel Abrahams", "username": "", "location": "Port Elizabeth/Gqeberha, South Africa", "date_agreed": "2025-12-01", "submitted_on": "Mon, 12/01/2025 - 09:46"}, {"title": "Never stop", "author": "Anna Severchuk", "username": "", "location": "Odesa, Ukraine", "date_agreed": "2025-11-08", "submitted_on": "Sat, 11/08/2025 - 13:56"}, {"title": "", "author": "", "username": "", "location": "", "date_agreed": "2025-11-04", "submitted_on": "[webform_submission:date:long]"}, {"title": "long-shadow hour", "author": "Frederick Kesner", "username": "", "location": "Ipswich, Australia", "date_agreed": "2026-10-25", "submitted_on": "Sun, 10/25/2026 - 16:04"}];
+function releaseFormAgreedDate(r){
+  const d=new Date(r.date_agreed);
+  return isNaN(d.getTime())?null:d;
+}
 function renderReleaseForms(){
   const list=$('rfList'), q=($('rfSearch')?$('rfSearch').value:'').trim().toLowerCase();
+  const unusedOnly=$('rfUnusedOnly')&&$('rfUnusedOnly').checked;
   const inBookTitles=new Set(manualPoems.filter(p=>p.kind==='poem').map(p=>p.title.toLowerCase()));
-  const matches=RELEASE_FORMS.filter(r=>!q||r.title.toLowerCase().includes(q)||r.author.toLowerCase().includes(q));
+  const sixMonthsAgo=new Date();sixMonthsAgo.setMonth(sixMonthsAgo.getMonth()-6);
+  const withMeta=RELEASE_FORMS.map((r,origIdx)=>({r,origIdx,
+    used:r.title&&inBookTitles.has(r.title.toLowerCase()),
+    date:releaseFormAgreedDate(r)}));
+  const unusedCount=withMeta.filter(x=>x.r.title&&!x.used).length;
+  const bannerEl=$('rfBanner');
+  if(bannerEl){
+    if(unusedCount){
+      bannerEl.style.display='block';
+      bannerEl.textContent=`${unusedCount} signed poem${unusedCount===1?'':'s'} ${unusedCount===1?"isn't":"aren't"} in this book yet.`;
+    }else{bannerEl.style.display='none';bannerEl.textContent='';}
+  }
+  let rows=withMeta.filter(x=>!q||x.r.title.toLowerCase().includes(q)||x.r.author.toLowerCase().includes(q));
+  if(unusedOnly){
+    rows=rows.filter(x=>x.r.title&&!x.used);
+    rows.sort((a,b)=>{
+      if(a.date&&b.date)return a.date-b.date;
+      if(a.date)return -1;if(b.date)return 1;return 0;
+    });
+  }
   $('rfCount').textContent=`${RELEASE_FORMS.length} release forms on file`+
-    (q?` — ${matches.length} match "${q}"`:' — search to browse, or prefill one into the form above.');
-  list.innerHTML=matches.slice(0,200).map(r=>{
-    const origIdx=RELEASE_FORMS.indexOf(r);
-    const done=inBookTitles.has(r.title.toLowerCase())?' ✓':'';
-    return `<li><span class="ftext">${escapeHtml(r.title)}${done} <span class="fauthor">— ${escapeHtml(r.author)}, agreed ${escapeHtml(r.date_agreed)}</span></span>`+
+    (q?` — ${rows.length} match "${q}"`:unusedOnly?` — ${rows.length} not yet used, oldest first`:' — search to browse, or prefill one into the form above.');
+  list.innerHTML=rows.slice(0,200).map(({r,origIdx,used,date})=>{
+    if(!r.title)return '';
+    const done=used?' ✓':'';
+    const stale=!used&&date&&date<sixMonthsAgo;
+    const liStyle=stale?'background:color-mix(in srgb, var(--warn) 16%, transparent)':'';
+    return `<li style="${liStyle}"><span class="ftext">${escapeHtml(r.title)}${done}${stale?' ⏳':''} <span class="fauthor">— ${escapeHtml(r.author)}, agreed ${escapeHtml(r.date_agreed)}</span></span>`+
       `<button class="frm" title="Prefill the poem fields" onclick="prefillFromRelease(${origIdx})">Prefill</button></li>`;
   }).join('')||`<li><span class="ftext" style="color:var(--muted)">No matches.</span></li>`;
 }
