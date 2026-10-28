@@ -865,7 +865,18 @@ function buildPages(entries,tw,th,fs,gutter,startRight,wantToc,ornament,dedicati
     pages.push({kind:'dedication',text:dedication});
     pages.push({kind:'blank'});
   }
-  if(wantToc){pages.push({kind:'toc',entries:[]});pages.push({kind:'blank'});}
+  // A table of contents needs one row per top-level entry (poem or section);
+  // that count is known up front, so the number of TOC pages it will take
+  // can be computed before any content pages exist, and page numbers for
+  // everything after it only have to be worked out once.
+  const tocFirstY=TOPM+lead*3.4;
+  const tocCapacity=Math.max(1,Math.floor((th-BOTM-tocFirstY)/lead)+1);
+  let tocPageCount=0;
+  if(wantToc){
+    tocPageCount=Math.max(1,Math.ceil(entries.length/tocCapacity));
+    for(let i=0;i<tocPageCount;i++)pages.push({kind:'toc',entries:[],first:i===0});
+    if(pages.length%2)pages.push({kind:'blank'});
+  }
 
   let pi=0;
   entries.forEach(entry=>{
@@ -902,16 +913,17 @@ function buildPages(entries,tw,th,fs,gutter,startRight,wantToc,ornament,dedicati
   if(pages.length%2)pages.push({kind:'blank'});
 
   if(wantToc){
-    const toc=pages.find(p=>p.kind==='toc');
-    if(toc){
-      toc.entries=[];
-      pages.forEach((pg,i)=>{
-        if(pg.kind==='sectiontitle')
-          toc.entries.push({kind:'section',title:pg.title,page:i+1});
-        else if(pg.kind==='poem'&&pg.showTitle)
-          toc.entries.push({kind:'poem',title:pg.title,author:pg.author,page:i+1});
-      });
-    }
+    const tocPagesArr=pages.filter(p=>p.kind==='toc');
+    const allEntries=[];
+    pages.forEach((pg,i)=>{
+      if(pg.kind==='sectiontitle')
+        allEntries.push({kind:'section',title:pg.title,page:i+1});
+      else if(pg.kind==='poem'&&pg.showTitle)
+        allEntries.push({kind:'poem',title:pg.title,author:pg.author,page:i+1});
+    });
+    tocPagesArr.forEach((tp,idx)=>{
+      tp.entries=allEntries.slice(idx*tocCapacity,(idx+1)*tocCapacity);
+    });
   }
   return pages;
 }
@@ -987,9 +999,9 @@ function drawPage(cv,page,idx,b){
   }
   else if(page.kind==='toc'){
     c.textAlign='center';c.font=`${I(b.fs*1.5/72)}px ${fam}`;
-    c.fillText('Contents',cv.width/2,I(TOPM)+lead*1.4);
+    c.fillText(page.first===false?'Contents (continued)':'Contents',cv.width/2,I(TOPM)+lead*1.4);
     c.textAlign='left';
-    (page.entries||[]).slice(0,34).forEach((e,i)=>{
+    (page.entries||[]).forEach((e,i)=>{
       const y=I(TOPM)+lead*3.4+i*lead;
       if(e.kind==='section'){
         c.font=`bold ${I(b.fs*1.02/72)}px ${fam}`;
@@ -1253,10 +1265,10 @@ async function buildPDF(){
     }
     else if(page.kind==='toc'){
       doc.setFont(fontName,'normal');doc.setFontSize(b.fs*1.5);
-      doc.text('Contents',b.tw/2,TOPM+lead*1.4,{align:'center'});
+      doc.text(page.first===false?'Contents (continued)':'Contents',b.tw/2,TOPM+lead*1.4,{align:'center'});
       (page.entries||[]).forEach((e,i)=>{
         const y=TOPM+lead*3.4+i*lead;
-        if(y>b.th-BOTM)return;
+        if(y>b.th-BOTM)return; // safety net; tocCapacity should already keep every entry on-page
         if(e.kind==='section'){
           doc.setFont(fontName,'bold');doc.setFontSize(b.fs*1.02);
           doc.text(e.title,left,y,{maxWidth:colW-0.5});
