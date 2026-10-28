@@ -242,6 +242,16 @@ the Globe</textarea>
       <div class="fld" id="blurbFld"><label>Back-cover blurb</label><textarea id="cBlurb">A gathering of voices from every corner of the world — the poems Neopoet's own writers chose to carry across the year.</textarea></div>
       <label class="chk" id="spineTextFld"><input type="checkbox" id="spineText" checked> Title on the spine (KDP only prints spine text past 79 pages)</label>
       <label class="chk"><input type="checkbox" id="showGuides" checked> Show bleed / safety / barcode guides (preview only — not printed)</label>
+      <div class="fld"><label>Simulate preview as</label>
+        <select id="visionSim" onchange="applyVisionSim()">
+          <option value="normal">Normal color</option>
+          <option value="grayscale">Grayscale (how a small thumbnail often reads)</option>
+          <option value="protanopia">Protanopia (red-weak)</option>
+          <option value="deuteranopia">Deuteranopia (green-weak)</option>
+          <option value="tritanopia">Tritanopia (blue-weak)</option>
+        </select>
+        <div class="hint">Simulation only — approximates how the cover reads to different viewers; it does not change the file you upload.</div>
+      </div>
       <div class="fld"><label>Move the text</label>
         <div class="row">
           <div class="fld"><label style="margin-bottom:2px">Front title</label><input type="range" id="titlePos" min="-50" max="50" value="0"></div>
@@ -273,6 +283,35 @@ the Globe</textarea>
   </div>
 </div>
 </div>
+
+<!-- Colorblindness simulation filters (Brettel/Viénot-style approximation
+     matrices), applied to the preview canvas only via CSS filter: url(#id);
+     they never touch the exported PDF. -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <filter id="simProtanopia" color-interpolation-filters="sRGB">
+      <feColorMatrix type="matrix" values="
+        0.567 0.433 0     0 0
+        0.558 0.442 0     0 0
+        0     0.242 0.758 0 0
+        0     0     0     1 0"/>
+    </filter>
+    <filter id="simDeuteranopia" color-interpolation-filters="sRGB">
+      <feColorMatrix type="matrix" values="
+        0.625 0.375 0   0 0
+        0.7   0.3   0   0 0
+        0     0.3   0.7 0 0
+        0     0     0   1 0"/>
+    </filter>
+    <filter id="simTritanopia" color-interpolation-filters="sRGB">
+      <feColorMatrix type="matrix" values="
+        0.95 0.05  0     0 0
+        0    0.433 0.567 0 0
+        0    0.475 0.525 0 0
+        0    0     0     1 0"/>
+    </filter>
+  </defs>
+</svg>
 
 <script>
 // ── KDP's published cover rules ──────────────────────────────────────
@@ -801,6 +840,22 @@ function renderPreview(){
     ? `${d.coverW.toFixed(3)}″ × ${d.coverH.toFixed(3)}″ full wrap  ·  spine ≈${d.spine.toFixed(3)}″ for ${d.pages} pages (estimate)  ·  ${HARD_WRAP}″ wrap`
     : `${d.coverW.toFixed(3)}″ × ${d.coverH.toFixed(3)}″ full wrap  ·  spine ${d.spine.toFixed(3)}″ for ${d.pages} pages  ·  ${BLEED}″ bleed`;
   renderChecks(d);
+}
+// Applies a CSS filter to the preview canvas only — a quick way to see how
+// the cover reads in grayscale (common for small marketplace thumbnails) or
+// under a colorblindness simulation. Purely visual: it never touches the
+// pixels that get exported to the PDF.
+function applyVisionSim(){
+  const el=$('visionSim'), cv=$('cv');
+  if(!el||!cv)return;
+  const map={
+    normal:'none',
+    grayscale:'grayscale(1)',
+    protanopia:'url(#simProtanopia)',
+    deuteranopia:'url(#simDeuteranopia)',
+    tritanopia:'url(#simTritanopia)',
+  };
+  cv.style.filter=map[el.value]||'none';
 }
 function TOPStart(d,edge,safety){ return edge+safety+0.3; }
 
@@ -1486,6 +1541,7 @@ refreshRestoreButton();
     el.addEventListener(el.type==='checkbox'?'change':'input',()=>renderPreview());
   });
 renderPreview();
+applyVisionSim();
 if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(()=>renderPreview()); }
 
 if('serviceWorker' in navigator){

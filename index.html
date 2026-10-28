@@ -192,6 +192,10 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
           <option value="book2">Book 2 only</option>
           <option value="untagged">Untagged only</option>
         </select>
+        <div class="btns" style="margin-top:8px">
+          <button class="ghost" onclick="renderBookCompare()">Compare Book 1 vs Book 2</button>
+        </div>
+        <div id="bookCompareBox"></div>
       </div>
       <div id="statusBox"></div>
       <div class="btns" style="margin-top:6px">
@@ -1161,6 +1165,49 @@ function drawPage(cv,page,idx,b){
   }
 }
 
+// Builds the same layout the real preview uses, but for a specific book
+// filter value, without disturbing what's actually on screen — used only
+// by the Book 1 vs Book 2 comparison, which needs both tallies at once.
+function computeBookStats(filterVal){
+  const bfEl=$('bookFilter');
+  if(!bfEl)return null;
+  const orig=bfEl.value;
+  bfEl.value=filterVal;
+  let b;
+  try{ b=layout(); }finally{ bfEl.value=orig; }
+  const poemsOnly=b.poems.filter(p=>p.kind==='poem');
+  const totalLines=poemsOnly.reduce((n,p)=>n+(p.lines?p.lines.length:0),0);
+  const printCost=kdpPrintCost(b.tw,b.th,b.pages.length);
+  const priceEl=$('pcPrice');
+  const price=priceEl?parseFloat(priceEl.value):NaN;
+  let royalty=null;
+  if(!isNaN(price)&&price>0){
+    const rate=price>=9.99?.60:.50;
+    royalty=rate*price-printCost;
+  }
+  return {poems:poemsOnly.length,lines:totalLines,pages:b.pages.length,printCost,royalty};
+}
+function renderBookCompare(){
+  const host=$('bookCompareBox');
+  if(!host)return;
+  const s1=computeBookStats('book1'), s2=computeBookStats('book2');
+  layout(); // restore the on-screen preview to whatever filter was actually active
+  renderPreview();
+  const row=(label,v1,v2)=>`<div style="display:contents">`+
+    `<span style="padding:4px 8px;color:var(--muted)">${label}</span>`+
+    `<span style="padding:4px 8px;text-align:right;font-variant-numeric:tabular-nums">${v1}</span>`+
+    `<span style="padding:4px 8px;text-align:right;font-variant-numeric:tabular-nums">${v2}</span></div>`;
+  host.innerHTML=`<div style="margin-top:10px;display:grid;grid-template-columns:1fr auto auto;gap:2px;font-size:.88rem;border:1px solid var(--line);border-radius:8px;overflow:hidden">`+
+    `<div style="display:contents;font-weight:600;background:var(--accent-soft)">`+
+    `<span style="padding:6px 8px">&nbsp;</span><span style="padding:6px 8px;text-align:right">Book 1</span><span style="padding:6px 8px;text-align:right">Book 2</span></div>`+
+    row('Poems',s1.poems,s2.poems)+
+    row('Total lines',s1.lines,s2.lines)+
+    row('Page count',s1.pages,s2.pages)+
+    row('Est. print cost',`$${s1.printCost.toFixed(2)}`,`$${s2.printCost.toFixed(2)}`)+
+    row('Royalty/copy',s1.royalty==null?'—':`$${s1.royalty.toFixed(2)}`,s2.royalty==null?'—':`$${s2.royalty.toFixed(2)}`)+
+    `</div>`+
+    (s1.royalty==null?'<div class="hint">Enter a list price in the KDP check card above to compare royalty too.</div>':'');
+}
 function renderPreview(){
   const b=layout();
   const host=$('spread');host.innerHTML='';
@@ -1468,6 +1515,10 @@ async function buildPDF(){
         const gapStart=left+labelW+.05, gapEnd=left+colW-numW-.08;
         const dots=Math.max(0,Math.floor((gapEnd-gapStart)/dotW));
         if(dots>0)doc.text('.'.repeat(dots),gapStart,y);
+        // Make the whole row a clickable jump to that poem/section's page
+        // — e.page is already the 1-based physical page index built in
+        // buildPages, matching jsPDF's own 1-based page numbering.
+        if(e.page)doc.link(left,y-lead*.78,colW,lead,{pageNumber:e.page});
       });
     }
     else if(page.kind==='poem'){

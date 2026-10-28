@@ -137,7 +137,7 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
         <button class="ghost" onclick="document.getElementById('imgFile').click()">+ Image</button>
         <input type="file" id="imgFile" accept="image/*" style="display:none" onchange="addImage(event)">
       </div>
-      <div class="hint">Click a layer below (or on the canvas) to select it, then drag to move it. Use the controls that appear to resize, rotate, recolor or edit text.</div>
+      <div class="hint">Click a layer below (or on the canvas) to select it, then drag to move it — it snaps to the center, edges, and other layers (pink guide lines show when it does). Hold Shift while dragging to move freely without snapping. Use the controls that appear to resize, rotate, recolor or edit text.</div>
       <div class="fld" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
         <label style="margin-bottom:2px">QR code (e.g. a "join our community" link)</label>
         <div class="row">
@@ -190,7 +190,7 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
       <div class="fld"><label>Product name</label><input type="text" id="fwName" placeholder="e.g. Permanent Ink Tee"></div>
       <div class="row">
         <div class="fld"><label>Product type</label>
-          <select id="fwTemplate">
+          <select id="fwTemplate" onchange="fillRememberedBaseCost()">
             <option value="tee">Unisex tee</option>
             <option value="hoodie">Hoodie</option>
             <option value="mug">Mug</option>
@@ -202,6 +202,17 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
         <div class="fld"><label class="chk" style="display:flex;align-items:center;gap:7px;margin-top:9px">
           <input type="checkbox" id="fwPublish" style="width:auto"> Publish live immediately
         </label></div>
+      </div>
+      <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+        <h3 style="margin:0 0 8px;font-size:.95rem">Price &amp; margin</h3>
+        <div class="row">
+          <div class="fld"><label>Fourthwall's base cost ($)</label>
+            <input type="number" id="fwBaseCost" min="0" step="0.01" placeholder="from your Fourthwall dashboard" oninput="renderMarginCalc()"></div>
+          <div class="fld"><label>Your retail price ($)</label>
+            <input type="number" id="fwRetail" min="0" step="0.01" placeholder="e.g. 24.99" oninput="renderMarginCalc()"></div>
+        </div>
+        <ul id="marginChecks" style="list-style:none;padding:0;margin:0;font-size:.88rem"></ul>
+        <div class="hint">Fourthwall doesn't publish a fixed cost formula the way KDP does — its base cost depends on your store's fulfillment partner and product options, so type in the number shown on your dashboard for this product to see your margin. Remembered per product type.</div>
       </div>
       <div class="btns">
         <button onclick="publishToFourthwall()" id="fwBtn">Publish design</button>
@@ -227,6 +238,7 @@ let bgColor=PRODUCTS.tee.colors[0];
 let layers=[]; // {id,type,x,y(0-1 center, relative to print area),scale,rot,text,font,size,color,img,w,h}
 let selId=null, nextId=1;
 let drag=null;
+let snapGuides=null; // {v:[x fractions...], h:[y fractions...]} while actively snapped
 
 function fam(){return `"Lora","Times New Roman",Times,serif`;}
 
@@ -380,6 +392,18 @@ function renderStage(){
       ctx.restore();
     }
   }
+  if(snapGuides){
+    ctx.save();ctx.strokeStyle='#e0527a';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+    (snapGuides.v||[]).forEach(xf=>{
+      const gx=a.x+xf*a.w;
+      ctx.beginPath();ctx.moveTo(gx,0);ctx.lineTo(gx,cv.height);ctx.stroke();
+    });
+    (snapGuides.h||[]).forEach(yf=>{
+      const gy=a.y+yf*a.h;
+      ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(cv.width,gy);ctx.stroke();
+    });
+    ctx.restore();
+  }
   renderLayerList();
 }
 
@@ -529,6 +553,57 @@ async function addQRCode(){
 }
 function clearAll(){ if(!layers.length)return; if(!confirm('Clear the whole design?'))return; layers=[];selId=null;renderStage();renderEditor(); }
 
+// ── Fourthwall price & margin calculator ────────────────────────────────
+// Fourthwall (unlike KDP) doesn't publish one fixed cost formula — its
+// base cost depends on the store's fulfillment partner and the product's
+// own options, so this is a manual-entry calculator, not a derived one.
+// It remembers the last base cost typed in per product type, since that
+// number is usually the same every time for a given product.
+const FW_BASE_COST_KEY='poetryFormatterFwBaseCost_v1';
+function loadFwBaseCosts(){
+  try{ return JSON.parse(localStorage.getItem(FW_BASE_COST_KEY)||'{}'); }catch(e){ return {}; }
+}
+function saveFwBaseCost(productKey,value){
+  const map=loadFwBaseCosts();
+  map[productKey]=value;
+  try{ localStorage.setItem(FW_BASE_COST_KEY,JSON.stringify(map)); }catch(e){}
+}
+function renderMarginCalc(){
+  const host=document.getElementById('marginChecks');
+  if(!host)return;
+  const baseEl=document.getElementById('fwBaseCost'), retailEl=document.getElementById('fwRetail');
+  const productKey=document.getElementById('fwTemplate')?document.getElementById('fwTemplate').value:'';
+  const base=baseEl?parseFloat(baseEl.value):NaN;
+  const retail=retailEl?parseFloat(retailEl.value):NaN;
+  if(!isNaN(base)&&base>0&&productKey)saveFwBaseCost(productKey,base);
+  const row=(k,v,color)=>`<li style="display:flex;justify-content:space-between;gap:10px;padding:3px 0">`+
+    `<span style="color:var(--muted)">${k}</span><span style="font-variant-numeric:tabular-nums${color?';color:'+color:''}">${v}</span></li>`;
+  const rows=[];
+  if(isNaN(base)||base<=0){
+    rows.push(row('Base cost','enter the cost shown on your Fourthwall dashboard','var(--warn)'));
+  }else if(isNaN(retail)||retail<=0){
+    rows.push(row('Base cost',`$${base.toFixed(2)}`));
+    rows.push(row('Margin','enter your retail price above to estimate','var(--warn)'));
+  }else{
+    const margin=retail-base;
+    const marginPct=retail>0?(margin/retail)*100:0;
+    rows.push(row('Base cost',`$${base.toFixed(2)}`));
+    rows.push(row('Retail price',`$${retail.toFixed(2)}`));
+    rows.push(row('Margin per sale',`${margin<0?'-':''}$${Math.abs(margin).toFixed(2)}`,margin>=0?'var(--ok)':'var(--bad)'));
+    rows.push(row('Margin %',`${marginPct.toFixed(1)}%`,margin>=0?'var(--ok)':'var(--bad)'));
+    if(margin<0)rows.push(row('&nbsp;↳ below cost','raise the price or pick a cheaper product','var(--bad)'));
+  }
+  host.innerHTML=rows.join('');
+}
+function fillRememberedBaseCost(){
+  const baseEl=document.getElementById('fwBaseCost');
+  const productKey=document.getElementById('fwTemplate')?document.getElementById('fwTemplate').value:'';
+  if(!baseEl||baseEl.value)return; // don't clobber something the user already typed
+  const map=loadFwBaseCosts();
+  if(productKey in map)baseEl.value=map[productKey];
+  renderMarginCalc();
+}
+
 // ── Named presets ─────────────────────────────────────────────────────
 // A preset is the whole current design (product, color, and every layer)
 // saved under a name in localStorage, so it can be reloaded later instead
@@ -645,6 +720,27 @@ cv.addEventListener('pointerdown',ev=>{
   }
   renderStage();renderEditor();
 });
+// Snap-to-grid: while dragging, pull the layer's center onto the print
+// area's own center/edge lines and onto other layers' centers, whenever
+// it comes within a small pixel threshold — same idea as alignment guides
+// in a design tool, just restricted to the handful of lines that actually
+// matter here (center, edges, and sibling layers).
+function snapTargets(excludeId){
+  const xs=[0,.5,1], ys=[0,.5,1];
+  layers.forEach(l=>{ if(l.id!==excludeId){ xs.push(l.x); ys.push(l.y); } });
+  return {xs,ys};
+}
+function applySnap(ly,a){
+  const thresholdFrac=8/Math.min(a.w,a.h); // ~8px at canvas resolution
+  const {xs,ys}=snapTargets(ly.id);
+  let vx=null,hy=null;
+  let bestX=thresholdFrac,bestY=thresholdFrac;
+  xs.forEach(x=>{ const d=Math.abs(ly.x-x); if(d<bestX){bestX=d;vx=x;} });
+  ys.forEach(y=>{ const d=Math.abs(ly.y-y); if(d<bestY){bestY=d;hy=y;} });
+  if(vx!=null)ly.x=vx;
+  if(hy!=null)ly.y=hy;
+  snapGuides=(vx!=null||hy!=null)?{v:vx!=null?[vx]:[],h:hy!=null?[hy]:[]}:null;
+}
 cv.addEventListener('pointermove',ev=>{
   if(!drag)return;
   const p=cvPoint(ev);
@@ -654,9 +750,10 @@ cv.addEventListener('pointermove',ev=>{
   ly.y=(p.y-drag.offY-a.y)/a.h;
   ly.x=Math.min(1.3,Math.max(-0.3,ly.x));
   ly.y=Math.min(1.3,Math.max(-0.3,ly.y));
+  if(!ev.shiftKey)applySnap(ly,a); else snapGuides=null; // hold Shift to move freely, unsnapped
   renderStage();
 });
-['pointerup','pointercancel'].forEach(evt=>cv.addEventListener(evt,()=>{drag=null;}));
+['pointerup','pointercancel'].forEach(evt=>cv.addEventListener(evt,()=>{drag=null;snapGuides=null;renderStage();}));
 
 // Renders the current layer set onto a fresh full-resolution canvas sized
 // to the given product's print area (same layer x/y/scale, since those are
@@ -827,6 +924,7 @@ function syncFromFormatterShared(){
   buildSwatches(); renderStage();
   renderPresetSelect();
   buildBatchProductRow();
+  fillRememberedBaseCost();
 })();
 </script>
 </body>
