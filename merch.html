@@ -118,6 +118,14 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
         <input type="file" id="imgFile" accept="image/*" style="display:none" onchange="addImage(event)">
       </div>
       <div class="hint">Click a layer below (or on the canvas) to select it, then drag to move it. Use the controls that appear to resize, rotate, recolor or edit text.</div>
+      <div class="fld" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+        <label style="margin-bottom:2px">QR code (e.g. a "join our community" link)</label>
+        <div class="row">
+          <input type="text" id="qrUrl" placeholder="https://neopoet.com" style="flex:2;min-width:160px">
+          <button class="ghost" onclick="addQRCode()">+ QR code</button>
+        </div>
+        <div class="hint" id="qrNote">Generates a scannable QR code as a new layer, same as an uploaded image — drag, resize and position it like any other layer.</div>
+      </div>
     </div>
 
     <div class="card">
@@ -427,6 +435,50 @@ function addImage(ev){
   };
   reader.readAsDataURL(file);
   ev.target.value='';
+}
+// Lazy-load a small, well-known QR generator from cdnjs the first time
+// it's needed (same pattern the Formatter app uses for its EPUB packager).
+let _qrLibReady=null;
+function loadQRLib(){
+  if(_qrLibReady)return _qrLibReady;
+  _qrLibReady=new Promise((resolve,reject)=>{
+    if(window.QRCode)return resolve(window.QRCode);
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    s.onload=()=>resolve(window.QRCode);
+    s.onerror=()=>reject(new Error('could not load the QR code generator'));
+    document.head.appendChild(s);
+  });
+  return _qrLibReady;
+}
+async function addQRCode(){
+  const urlEl=document.getElementById('qrUrl');
+  const url=(urlEl?urlEl.value:'').trim();
+  const note=document.getElementById('qrNote');
+  if(!url){ if(note)note.textContent='Type a URL first.'; return; }
+  let QRCodeLib;
+  try{ QRCodeLib=await loadQRLib(); }
+  catch(e){ if(note)note.textContent='Could not load the QR code generator — check your connection and try again.'; return; }
+  const tmp=document.createElement('div');
+  tmp.style.display='none';
+  document.body.appendChild(tmp);
+  new QRCodeLib(tmp,{text:url,width:512,height:512,correctLevel:QRCodeLib.CorrectLevel.M});
+  // the library draws asynchronously onto a canvas/img it creates inside tmp
+  await new Promise(r=>setTimeout(r,80));
+  const canvas=tmp.querySelector('canvas');
+  const dataUrl=canvas?canvas.toDataURL('image/png'):((tmp.querySelector('img')||{}).src);
+  document.body.removeChild(tmp);
+  if(!dataUrl){ if(note)note.textContent='Could not generate that QR code — try again.'; return; }
+  const img=new Image();
+  img.onload=()=>{
+    const id=nextId++;
+    const maxW=printArea().w*.22; // a QR code is usually a small accent, not full-bleed art
+    const scale0=Math.min(1,maxW/img.width);
+    layers.push({id,type:'image',x:.5,y:.5,scale:1,rot:0,img,w:img.width*scale0,h:img.height*scale0});
+    selId=id;renderStage();renderEditor();
+    if(note)note.textContent='Added — drag it into place like any other layer.';
+  };
+  img.src=dataUrl;
 }
 function clearAll(){ if(!layers.length)return; if(!confirm('Clear the whole design?'))return; layers=[];selId=null;renderStage();renderEditor(); }
 

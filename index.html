@@ -115,6 +115,17 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
 <h1>Poetry Book Formatter</h1>
 <div class="sub">Paste the poems, pick a size, download an interior PDF that meets Amazon KDP's print rules.</div>
 
+<div class="card" style="margin-bottom:16px">
+  <h2>Project backup</h2>
+  <div class="hint">Everything here — the poems you're building, your settings, and the author/location memory — lives only in this browser's storage. Export a backup file now and then so a cleared browser or a new computer can't lose it.</div>
+  <div class="btns" style="margin-top:8px">
+    <button class="ghost" onclick="exportProjectBackup()">⬇ Export project backup</button>
+    <button class="ghost" onclick="document.getElementById('projectImportFile').click()">⬆ Import project backup</button>
+    <input type="file" id="projectImportFile" accept="application/json" style="display:none" onchange="handleProjectImportFile(this.files[0])">
+  </div>
+  <div class="hint" id="projectBackupNote"></div>
+</div>
+
 <div class="cols">
   <div>
     <div class="card">
@@ -158,6 +169,19 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
           <input type="file" id="docx" accept=".docx,.pdf,.txt" style="display:none" onchange="readFile(this.files[0])">
         </div>
         <div class="hint" id="fileNote"></div>
+      </div>
+
+      <div class="fld" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+        <label>Bulk-add multiple poems at once — pick several .txt, .docx or .pdf files and each one becomes its own poem (its first line becomes the title, or the filename if the first line doesn't look like one).</label>
+        <div class="row">
+          <div class="fld"><label style="margin-bottom:2px">Author for all of these (optional)</label><input type="text" id="bulkAuthor" list="mAuthorList" placeholder="leave blank to set per-poem later"></div>
+          <div class="fld"><label style="margin-bottom:2px">Neopoet username for all of these (optional)</label><input type="text" id="bulkUsername" list="mUsernameList"></div>
+        </div>
+        <div class="btns">
+          <button class="ghost" onclick="document.getElementById('bulkFiles').click()">+ Choose files…</button>
+          <input type="file" id="bulkFiles" accept=".txt,.docx,.pdf" multiple style="display:none" onchange="addBulkPoemFiles(this.files)">
+        </div>
+        <div class="hint" id="bulkImportNote"></div>
       </div>
 
       <div id="bookFilterRow" class="fld" style="margin-top:10px">
@@ -1696,6 +1720,65 @@ async function unzipEntry(bytes,wanted){
   return null;
 }
 
+// ── Bulk file import: one poem per uploaded .txt/.docx/.pdf file ──────────
+async function extractFileText(f){
+  const name=f.name.toLowerCase();
+  if(name.endsWith('.txt'))return await f.text();
+  if(name.endsWith('.pdf'))return await readPdf(f);
+  const buf=new Uint8Array(await f.arrayBuffer());
+  const xml=await unzipEntry(buf,'word/document.xml');
+  if(!xml)throw new Error('could not read as .docx');
+  const paras=xml.split(/<w:p[ >]/).slice(1).map(p=>{
+    const runs=[...p.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)].map(m=>m[1]).join('');
+    return runs.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+               .replace(/&quot;/g,'"').replace(/&#39;/g,"'");
+  });
+  return paras.join('\n');
+}
+async function addBulkPoemFiles(fileList){
+  const files=Array.from(fileList||[]);
+  if(!files.length)return;
+  const note=$('bulkImportNote');
+  if(note)note.textContent='Reading '+files.length+' file'+(files.length===1?'':'s')+'…';
+  let authorName=($('bulkAuthor')?$('bulkAuthor').value:'').trim();
+  const authorUser=($('bulkUsername')?$('bulkUsername').value:'').trim();
+  if(!authorName&&authorUser)authorName=authorUser; // no full name given: use the username for both
+  snapshotManualPoems();
+  let added=0;const failed=[];
+  for(const f of files){
+    let text;
+    try{ text=await extractFileText(f); }
+    catch(e){ failed.push(f.name); continue; }
+    const rawLines=text.replace(/\r\n?/g,'\n').split('\n');
+    while(rawLines.length&&!rawLines[0].trim())rawLines.shift();
+    while(rawLines.length&&!rawLines[rawLines.length-1].trim())rawLines.pop();
+    if(!rawLines.length){failed.push(f.name+' (empty)');continue;}
+    let title,bodyLines;
+    const firstLine=rawLines[0].trim();
+    if(firstLine&&firstLine.length<=80&&rawLines.length>1){
+      title=firstLine;
+      bodyLines=rawLines.slice(1);
+      while(bodyLines.length&&!bodyLines[0].trim())bodyLines.shift();
+    }else{
+      title=f.name.replace(/\.(txt|docx|pdf)$/i,'').replace(/[_-]+/g,' ').trim()||'Untitled';
+      bodyLines=rawLines;
+    }
+    manualPoems.push({kind:'poem',title,author:authorName,username:authorUser,location:'',lines:bodyLines});
+    added++;
+  }
+  if(authorName){
+    rememberAuthor(authorName,authorUser);
+    rememberAuthorUsername(authorName,authorUser);
+  }
+  if(inputMode!=='one')setMode('one');
+  renderPreview();
+  if(note){
+    note.textContent=`Added ${added} poem${added===1?'':'s'} from ${files.length} file${files.length===1?'':'s'}.`+
+      (failed.length?` Could not read: ${failed.join(', ')}.`:'');
+  }
+  $('bulkFiles').value='';
+}
+
 function loadSample(){
   setMode('all');
   $('src').value=`Secret Meetings
@@ -2073,6 +2156,58 @@ function loadState(){
       });
     }
   }catch(e){ console.warn('could not restore saved work:',e); }
+}
+
+// ── Whole-project backup: everything this app keeps in this browser's
+// localStorage, bundled into one downloadable file and restorable from it.
+// Built as a function (not a top-level const) because some of these keys
+// — SHARED_BOOK_KEY in particular — are declared further down the file,
+// and a top-level const referencing them before their own declaration
+// throws (temporal dead zone); by the time this function actually runs,
+// the whole script has finished initializing, so it's safe.
+function projectBackupKeys(){
+  return [STORAGE_KEY,KNOWN_AUTHORS_KEY,KNOWN_LOCATIONS_KEY,
+    AUTHOR_LOCATIONS_KEY,AUTHOR_USERNAMES_KEY,SHARED_BOOK_KEY];
+}
+async function exportProjectBackup(){
+  const data={};
+  projectBackupKeys().forEach(k=>{
+    try{
+      const raw=localStorage.getItem(k);
+      if(raw!==null)data[k]=raw;
+    }catch(e){}
+  });
+  const payload={app:'poetry-formatter',exportedAt:new Date().toISOString(),data};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const stamp=new Date().toISOString().slice(0,10);
+  await saveFile(`poetry-formatter-backup-${stamp}.json`,blob);
+  const note=$('projectBackupNote');
+  if(note)note.textContent='Backup downloaded — keep it somewhere safe (e.g. your Drive or email).';
+}
+function handleProjectImportFile(file){
+  const note=$('projectBackupNote');
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    let payload;
+    try{ payload=JSON.parse(e.target.result); }
+    catch(err){ if(note)note.textContent='That file could not be read as a project backup.'; return; }
+    if(!payload||typeof payload.data!=='object'){
+      if(note)note.textContent='That file does not look like a project backup.';
+      return;
+    }
+    if(!confirm('Importing will replace everything currently in this browser for this app (poems, settings, and author memory) with the contents of the backup. Continue?'))return;
+    let restored=0;
+    projectBackupKeys().forEach(k=>{
+      if(k in payload.data){
+        try{ localStorage.setItem(k,payload.data[k]); restored++; }catch(e){}
+      }
+    });
+    if(note)note.textContent=`Restored ${restored} saved item${restored===1?'':'s'} — reloading…`;
+    setTimeout(()=>location.reload(),600);
+  };
+  reader.readAsText(file);
+  $('projectImportFile').value='';
 }
 
 // ── Your Bowker ISBN pool (pulled from myidentifiers.com on 2026-10-27) ──
