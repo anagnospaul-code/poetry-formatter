@@ -255,6 +255,22 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
           <option value="frame">Open frame ⌐‾¬</option>
           <option value="notch">Single notch ⌐_¬</option>
           <option value="brackets">Corner brackets ⌐¬</option>
+          <option value="diamond">Open diamond ──◇──</option>
+          <option value="square">Open square ──□──</option>
+          <option value="triangle">Open triangle ──△──</option>
+          <option value="star5">Star burst ✦</option>
+          <option value="sunburst">Sunburst ✳</option>
+          <option value="wave">Wave ∿</option>
+          <option value="ladder">Ladder rule ⊢—┼—⊣</option>
+          <option value="bowtie">Bowtie ⋈</option>
+          <option value="pillars">Pillars |──|</option>
+          <option value="target">Target ──◎──</option>
+          <option value="diamond-chain">Diamond chain ⋄⋄⋄</option>
+          <option value="circle-chain">Circle chain ○○○</option>
+          <option value="arrowin">Arrows inward ──&gt;&lt;──</option>
+          <option value="arrowout">Arrows outward &lt;──&gt;</option>
+          <option value="sqbracket">Square bracket ticks |──|──|</option>
+          <option value="tripledot">Triple dot ──⁖──</option>
           <option value="none">None</option>
         </select></div>
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:4px">
@@ -717,6 +733,25 @@ const ORNAMENT_KEY_UNIT=.04, ORNAMENT_KEY_H=.028, ORNAMENT_KEY_N=4;
 const ORNAMENT_STEP_RULE=.17, ORNAMENT_STEP_GAP=.05, ORNAMENT_STEP_TAB=.035;
 const ORNAMENT_FRAME_RULE=.16, ORNAMENT_FRAME_GAP=.05, ORNAMENT_FRAME_W=.07, ORNAMENT_FRAME_H=.045;
 const ORNAMENT_NOTCH_RULE=.16, ORNAMENT_NOTCH_GAP=.03, ORNAMENT_NOTCH_W=.05, ORNAMENT_NOTCH_H=.04;
+// A second batch, same house style (straight strokes, open or filled
+// simple shapes, nothing curved that jsPDF and canvas would render
+// differently) — just more variety in the centerpiece between two rules.
+const ORNAMENT_DIAMOND_RULE=.26, ORNAMENT_DIAMOND_GAP=.08, ORNAMENT_DIAMOND_R=.045;
+const ORNAMENT_SQUARE_RULE=.26, ORNAMENT_SQUARE_GAP=.08, ORNAMENT_SQUARE_R=.035;
+const ORNAMENT_TRIANGLE_RULE=.26, ORNAMENT_TRIANGLE_GAP=.08, ORNAMENT_TRIANGLE_R=.04;
+const ORNAMENT_STAR5_R=.07;
+const ORNAMENT_SUNBURST_R=.075;
+const ORNAMENT_WAVE_L=.3, ORNAMENT_WAVE_AMP=.028, ORNAMENT_WAVE_N=6;
+const ORNAMENT_LADDER_RULE=.3, ORNAMENT_LADDER_TICK=.035, ORNAMENT_LADDER_N=3;
+const ORNAMENT_BOWTIE_R=.05;
+const ORNAMENT_PILLARS_RULE=.28, ORNAMENT_PILLARS_GAP=.02, ORNAMENT_PILLARS_TICK=.045;
+const ORNAMENT_TARGET_RULE=.26, ORNAMENT_TARGET_GAP=.08, ORNAMENT_TARGET_R=.035, ORNAMENT_TARGET_DOT=.012;
+const ORNAMENT_DCHAIN_R=.03, ORNAMENT_DCHAIN_SP=.09;
+const ORNAMENT_CCHAIN_R=.025, ORNAMENT_CCHAIN_SP=.09;
+const ORNAMENT_ARROWIN_RULE=.22, ORNAMENT_ARROWIN_GAP=.06, ORNAMENT_ARROWIN_H=.04;
+const ORNAMENT_ARROWOUT_RULE=.22, ORNAMENT_ARROWOUT_GAP=.1, ORNAMENT_ARROWOUT_H=.04;
+const ORNAMENT_SQBRACKET_RULE=.2, ORNAMENT_SQBRACKET_GAP=.065, ORNAMENT_SQBRACKET_H=.05;
+const ORNAMENT_TRIPLEDOT_RULE=.24, ORNAMENT_TRIPLEDOT_GAP=.1, ORNAMENT_TRIPLEDOT_R=.02, ORNAMENT_TRIPLEDOT_SP=.045;
 function drawOrnamentCanvas(c,cx,y,style,I){
   if(style==='none')return;
   c.save();c.fillStyle='#777';c.strokeStyle='#777';c.lineWidth=I(.012);
@@ -787,6 +822,94 @@ function drawOrnamentCanvas(c,cx,y,style,I){
     c.beginPath();c.moveTo(cx-w-g-L,y);c.lineTo(cx-w-g,y);
     c.lineTo(cx-w,y);c.lineTo(cx-w,y-h);c.lineTo(cx+w,y-h);c.lineTo(cx+w,y);
     c.lineTo(cx+w+g,y);c.lineTo(cx+w+g+L,y);c.stroke();
+  }else if(style==='diamond'){
+    const L=I(ORNAMENT_DIAMOND_RULE),g=I(ORNAMENT_DIAMOND_GAP),r=I(ORNAMENT_DIAMOND_R);
+    c.beginPath();c.moveTo(cx-L-g,y);c.lineTo(cx-g,y);c.stroke();
+    c.beginPath();c.moveTo(cx+g,y);c.lineTo(cx+g+L,y);c.stroke();
+    c.beginPath();c.moveTo(cx,y-r);c.lineTo(cx+r,y);c.lineTo(cx,y+r);c.lineTo(cx-r,y);c.closePath();c.stroke();
+  }else if(style==='square'){
+    const L=I(ORNAMENT_SQUARE_RULE),g=I(ORNAMENT_SQUARE_GAP),r=I(ORNAMENT_SQUARE_R);
+    c.beginPath();c.moveTo(cx-L-g,y);c.lineTo(cx-g,y);c.stroke();
+    c.beginPath();c.moveTo(cx+g,y);c.lineTo(cx+g+L,y);c.stroke();
+    c.strokeRect(cx-r,y-r,r*2,r*2);
+  }else if(style==='triangle'){
+    const L=I(ORNAMENT_TRIANGLE_RULE),g=I(ORNAMENT_TRIANGLE_GAP),r=I(ORNAMENT_TRIANGLE_R);
+    c.beginPath();c.moveTo(cx-L-g,y);c.lineTo(cx-g,y);c.stroke();
+    c.beginPath();c.moveTo(cx+g,y);c.lineTo(cx+g+L,y);c.stroke();
+    c.beginPath();c.moveTo(cx,y-r);c.lineTo(cx+r,y+r*.7);c.lineTo(cx-r,y+r*.7);c.closePath();c.stroke();
+  }else if(style==='star5'){
+    const r=I(ORNAMENT_STAR5_R);
+    for(let i=0;i<5;i++){
+      const a1=-Math.PI/2+i*(Math.PI*2/5);
+      c.beginPath();c.moveTo(cx,y);c.lineTo(cx+Math.cos(a1)*r,y+Math.sin(a1)*r);c.stroke();
+    }
+  }else if(style==='sunburst'){
+    const r=I(ORNAMENT_SUNBURST_R);
+    for(let i=0;i<8;i++){
+      const a1=i*(Math.PI*2/8);
+      c.beginPath();c.moveTo(cx,y);c.lineTo(cx+Math.cos(a1)*r,y+Math.sin(a1)*r);c.stroke();
+    }
+  }else if(style==='wave'){
+    const L=I(ORNAMENT_WAVE_L),amp=I(ORNAMENT_WAVE_AMP),n=ORNAMENT_WAVE_N;
+    const step=L/n;
+    c.beginPath();c.moveTo(cx-L/2,y);
+    for(let i=1;i<=n;i++)c.lineTo(cx-L/2+i*step,y+(i%2?-amp:amp));
+    c.stroke();
+  }else if(style==='ladder'){
+    const L=I(ORNAMENT_LADDER_RULE),t=I(ORNAMENT_LADDER_TICK),n=ORNAMENT_LADDER_N;
+    c.beginPath();c.moveTo(cx-L/2,y);c.lineTo(cx+L/2,y);c.stroke();
+    for(let i=0;i<n;i++){
+      const tx=cx-L/2+(L/(n-1))*i;
+      c.beginPath();c.moveTo(tx,y-t);c.lineTo(tx,y+t);c.stroke();
+    }
+  }else if(style==='bowtie'){
+    const r=I(ORNAMENT_BOWTIE_R);
+    c.beginPath();c.moveTo(cx-r,y-r);c.lineTo(cx,y);c.lineTo(cx-r,y+r);c.closePath();c.stroke();
+    c.beginPath();c.moveTo(cx+r,y-r);c.lineTo(cx,y);c.lineTo(cx+r,y+r);c.closePath();c.stroke();
+  }else if(style==='pillars'){
+    const L=I(ORNAMENT_PILLARS_RULE),g=I(ORNAMENT_PILLARS_GAP),t=I(ORNAMENT_PILLARS_TICK);
+    c.beginPath();c.moveTo(cx-L/2,y);c.lineTo(cx+L/2,y);c.stroke();
+    [-1,1].forEach(side=>{
+      const x=cx+side*(L/2-g);
+      c.beginPath();c.moveTo(x,y-t);c.lineTo(x,y+t);c.stroke();
+    });
+  }else if(style==='target'){
+    const L=I(ORNAMENT_TARGET_RULE),g=I(ORNAMENT_TARGET_GAP),r=I(ORNAMENT_TARGET_R),dr=I(ORNAMENT_TARGET_DOT);
+    c.beginPath();c.moveTo(cx-L-g,y);c.lineTo(cx-g,y);c.stroke();
+    c.beginPath();c.moveTo(cx+g,y);c.lineTo(cx+g+L,y);c.stroke();
+    c.beginPath();c.arc(cx,y,r,0,Math.PI*2);c.stroke();
+    c.beginPath();c.arc(cx,y,dr,0,Math.PI*2);c.fill();
+  }else if(style==='diamond-chain'){
+    const r=I(ORNAMENT_DCHAIN_R),sp=I(ORNAMENT_DCHAIN_SP);
+    [-sp,0,sp].forEach(dx=>{
+      c.beginPath();c.moveTo(cx+dx,y-r);c.lineTo(cx+dx+r,y);c.lineTo(cx+dx,y+r);c.lineTo(cx+dx-r,y);c.closePath();c.stroke();
+    });
+  }else if(style==='circle-chain'){
+    const r=I(ORNAMENT_CCHAIN_R),sp=I(ORNAMENT_CCHAIN_SP);
+    [-sp,0,sp].forEach(dx=>{c.beginPath();c.arc(cx+dx,y,r,0,Math.PI*2);c.stroke();});
+  }else if(style==='arrowin'){
+    const L=I(ORNAMENT_ARROWIN_RULE),g=I(ORNAMENT_ARROWIN_GAP),h=I(ORNAMENT_ARROWIN_H);
+    c.beginPath();c.moveTo(cx-L-g,y);c.lineTo(cx-g,y);c.stroke();
+    c.beginPath();c.moveTo(cx+g,y);c.lineTo(cx+g+L,y);c.stroke();
+    c.beginPath();c.moveTo(cx-g-h,y-h);c.lineTo(cx-g,y);c.lineTo(cx-g-h,y+h);c.stroke();
+    c.beginPath();c.moveTo(cx+g+h,y-h);c.lineTo(cx+g,y);c.lineTo(cx+g+h,y+h);c.stroke();
+  }else if(style==='arrowout'){
+    const L=I(ORNAMENT_ARROWOUT_RULE),g=I(ORNAMENT_ARROWOUT_GAP),h=I(ORNAMENT_ARROWOUT_H);
+    c.beginPath();c.moveTo(cx-L-g,y);c.lineTo(cx-g,y);c.stroke();
+    c.beginPath();c.moveTo(cx+g,y);c.lineTo(cx+g+L,y);c.stroke();
+    c.beginPath();c.moveTo(cx-g+h,y-h);c.lineTo(cx-g,y);c.lineTo(cx-g+h,y+h);c.stroke();
+    c.beginPath();c.moveTo(cx+g-h,y-h);c.lineTo(cx+g,y);c.lineTo(cx+g-h,y+h);c.stroke();
+  }else if(style==='sqbracket'){
+    const L=I(ORNAMENT_SQBRACKET_RULE),g=I(ORNAMENT_SQBRACKET_GAP),h=I(ORNAMENT_SQBRACKET_H);
+    c.beginPath();c.moveTo(cx-h-g-L,y);c.lineTo(cx-h-g,y);c.stroke();
+    c.beginPath();c.moveTo(cx+h+g,y);c.lineTo(cx+h+g+L,y);c.stroke();
+    c.beginPath();c.moveTo(cx-h,y-h);c.lineTo(cx-h,y+h);c.stroke();
+    c.beginPath();c.moveTo(cx+h,y-h);c.lineTo(cx+h,y+h);c.stroke();
+  }else if(style==='tripledot'){
+    const L=I(ORNAMENT_TRIPLEDOT_RULE),g=I(ORNAMENT_TRIPLEDOT_GAP),r=I(ORNAMENT_TRIPLEDOT_R),sp=I(ORNAMENT_TRIPLEDOT_SP);
+    c.beginPath();c.moveTo(cx-L-g,y);c.lineTo(cx-g,y);c.stroke();
+    c.beginPath();c.moveTo(cx+g,y);c.lineTo(cx+g+L,y);c.stroke();
+    [-sp,0,sp].forEach(dx=>{c.beginPath();c.arc(cx+dx,y,r,0,Math.PI*2);c.fill();});
   }
   c.restore();
 }
@@ -849,6 +972,84 @@ function drawOrnamentPDF(doc,cx,y,style){
     doc.line(cx-w-g-L,y,cx-w-g,y);
     doc.lines([[g,0],[0,-h],[2*w,0],[0,h],[g,0]],cx-w-g,y,[1,1],'S',false);
     doc.line(cx+w+g,y,cx+w+g+L,y);
+  }else if(style==='diamond'){
+    const L=ORNAMENT_DIAMOND_RULE,g=ORNAMENT_DIAMOND_GAP,r=ORNAMENT_DIAMOND_R;
+    doc.line(cx-L-g,y,cx-g,y); doc.line(cx+g,y,cx+g+L,y);
+    doc.lines([[r,-r],[r,r],[-r,r],[-r,-r]],cx-r,y,[1,1],'S',true);
+  }else if(style==='square'){
+    const L=ORNAMENT_SQUARE_RULE,g=ORNAMENT_SQUARE_GAP,r=ORNAMENT_SQUARE_R;
+    doc.line(cx-L-g,y,cx-g,y); doc.line(cx+g,y,cx+g+L,y);
+    doc.rect(cx-r,y-r,r*2,r*2,'S');
+  }else if(style==='triangle'){
+    const L=ORNAMENT_TRIANGLE_RULE,g=ORNAMENT_TRIANGLE_GAP,r=ORNAMENT_TRIANGLE_R;
+    doc.line(cx-L-g,y,cx-g,y); doc.line(cx+g,y,cx+g+L,y);
+    doc.lines([[r,r*1.7],[-r*2,0]],cx,y-r,[1,1],'S',true);
+  }else if(style==='star5'){
+    const r=ORNAMENT_STAR5_R;
+    for(let i=0;i<5;i++){
+      const a1=-Math.PI/2+i*(Math.PI*2/5);
+      doc.line(cx,y,cx+Math.cos(a1)*r,y+Math.sin(a1)*r);
+    }
+  }else if(style==='sunburst'){
+    const r=ORNAMENT_SUNBURST_R;
+    for(let i=0;i<8;i++){
+      const a1=i*(Math.PI*2/8);
+      doc.line(cx,y,cx+Math.cos(a1)*r,y+Math.sin(a1)*r);
+    }
+  }else if(style==='wave'){
+    const L=ORNAMENT_WAVE_L,amp=ORNAMENT_WAVE_AMP,n=ORNAMENT_WAVE_N;
+    const step=L/n;
+    let px=cx-L/2,py=y;
+    for(let i=1;i<=n;i++){
+      const nx=cx-L/2+i*step, ny=y+(i%2?-amp:amp);
+      doc.line(px,py,nx,ny); px=nx;py=ny;
+    }
+  }else if(style==='ladder'){
+    const L=ORNAMENT_LADDER_RULE,t=ORNAMENT_LADDER_TICK,n=ORNAMENT_LADDER_N;
+    doc.line(cx-L/2,y,cx+L/2,y);
+    for(let i=0;i<n;i++){
+      const tx=cx-L/2+(L/(n-1))*i;
+      doc.line(tx,y-t,tx,y+t);
+    }
+  }else if(style==='bowtie'){
+    const r=ORNAMENT_BOWTIE_R;
+    doc.lines([[r,r],[-r,r]],cx-r,y-r,[1,1],'S',true);
+    doc.lines([[-r,r],[r,r]],cx+r,y-r,[1,1],'S',true);
+  }else if(style==='pillars'){
+    const L=ORNAMENT_PILLARS_RULE,g=ORNAMENT_PILLARS_GAP,t=ORNAMENT_PILLARS_TICK;
+    doc.line(cx-L/2,y,cx+L/2,y);
+    [-1,1].forEach(side=>{
+      const x=cx+side*(L/2-g);
+      doc.line(x,y-t,x,y+t);
+    });
+  }else if(style==='target'){
+    const L=ORNAMENT_TARGET_RULE,g=ORNAMENT_TARGET_GAP,r=ORNAMENT_TARGET_R,dr=ORNAMENT_TARGET_DOT;
+    doc.line(cx-L-g,y,cx-g,y); doc.line(cx+g,y,cx+g+L,y);
+    doc.circle(cx,y,r,'S'); doc.circle(cx,y,dr,'F');
+  }else if(style==='diamond-chain'){
+    const r=ORNAMENT_DCHAIN_R,sp=ORNAMENT_DCHAIN_SP;
+    [-sp,0,sp].forEach(dx=>doc.lines([[r,-r],[r,r],[-r,r],[-r,-r]],cx+dx-r,y,[1,1],'S',true));
+  }else if(style==='circle-chain'){
+    const r=ORNAMENT_CCHAIN_R,sp=ORNAMENT_CCHAIN_SP;
+    [-sp,0,sp].forEach(dx=>doc.circle(cx+dx,y,r,'S'));
+  }else if(style==='arrowin'){
+    const L=ORNAMENT_ARROWIN_RULE,g=ORNAMENT_ARROWIN_GAP,h=ORNAMENT_ARROWIN_H;
+    doc.line(cx-L-g,y,cx-g,y); doc.line(cx+g,y,cx+g+L,y);
+    doc.line(cx-g-h,y-h,cx-g,y); doc.line(cx-g,y,cx-g-h,y+h);
+    doc.line(cx+g+h,y-h,cx+g,y); doc.line(cx+g,y,cx+g+h,y+h);
+  }else if(style==='arrowout'){
+    const L=ORNAMENT_ARROWOUT_RULE,g=ORNAMENT_ARROWOUT_GAP,h=ORNAMENT_ARROWOUT_H;
+    doc.line(cx-L-g,y,cx-g,y); doc.line(cx+g,y,cx+g+L,y);
+    doc.line(cx-g+h,y-h,cx-g,y); doc.line(cx-g,y,cx-g+h,y+h);
+    doc.line(cx+g-h,y-h,cx+g,y); doc.line(cx+g,y,cx+g-h,y+h);
+  }else if(style==='sqbracket'){
+    const L=ORNAMENT_SQBRACKET_RULE,g=ORNAMENT_SQBRACKET_GAP,h=ORNAMENT_SQBRACKET_H;
+    doc.line(cx-h-g-L,y,cx-h-g,y); doc.line(cx+h+g,y,cx+h+g+L,y);
+    doc.line(cx-h,y-h,cx-h,y+h); doc.line(cx+h,y-h,cx+h,y+h);
+  }else if(style==='tripledot'){
+    const L=ORNAMENT_TRIPLEDOT_RULE,g=ORNAMENT_TRIPLEDOT_GAP,r=ORNAMENT_TRIPLEDOT_R,sp=ORNAMENT_TRIPLEDOT_SP;
+    doc.line(cx-L-g,y,cx-g,y); doc.line(cx+g,y,cx+g+L,y);
+    [-sp,0,sp].forEach(dx=>doc.circle(cx+dx,y,r,'F'));
   }
   doc.setDrawColor(0);doc.setFillColor(0);
 }
