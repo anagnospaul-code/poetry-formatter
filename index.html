@@ -868,12 +868,24 @@ function buildPages(entries,tw,th,fs,gutter,startRight,wantToc,ornament,dedicati
   // A table of contents needs one row per top-level entry (poem or section);
   // that count is known up front, so the number of TOC pages it will take
   // can be computed before any content pages exist, and page numbers for
-  // everything after it only have to be worked out once.
-  const tocFirstY=TOPM+lead*3.4;
-  const tocCapacity=Math.max(1,Math.floor((th-BOTM-tocFirstY)/lead)+1);
+  // everything after it only have to be worked out once. The first page
+  // carries the "Table of Contents" header (and its ornament), so it holds
+  // fewer rows than an unheaded continuation page.
+  const tocFirstY=TOPM+lead*3.4, tocContY=TOPM+lead;
+  const tocCapacityFirst=Math.max(1,Math.floor((th-BOTM-tocFirstY)/lead)+1);
+  const tocCapacityCont=Math.max(1,Math.floor((th-BOTM-tocContY)/lead)+1);
+  const tocPageCaps=[];
   let tocPageCount=0;
   if(wantToc){
-    tocPageCount=Math.max(1,Math.ceil(entries.length/tocCapacity));
+    let remaining=entries.length;
+    tocPageCaps.push(Math.min(remaining,tocCapacityFirst));
+    remaining-=tocPageCaps[0];
+    while(remaining>0){
+      const cap=Math.min(remaining,tocCapacityCont);
+      tocPageCaps.push(cap);
+      remaining-=cap;
+    }
+    tocPageCount=tocPageCaps.length;
     for(let i=0;i<tocPageCount;i++)pages.push({kind:'toc',entries:[],first:i===0});
     if(pages.length%2)pages.push({kind:'blank'});
   }
@@ -921,8 +933,11 @@ function buildPages(entries,tw,th,fs,gutter,startRight,wantToc,ornament,dedicati
       else if(pg.kind==='poem'&&pg.showTitle)
         allEntries.push({kind:'poem',title:pg.title,author:pg.author,page:i+1});
     });
+    let cursor=0;
     tocPagesArr.forEach((tp,idx)=>{
-      tp.entries=allEntries.slice(idx*tocCapacity,(idx+1)*tocCapacity);
+      const cap=tocPageCaps[idx]||tocCapacityCont;
+      tp.entries=allEntries.slice(cursor,cursor+cap);
+      cursor+=cap;
     });
   }
   return pages;
@@ -998,20 +1013,39 @@ function drawPage(cv,page,idx,b){
     c.textAlign='left';
   }
   else if(page.kind==='toc'){
-    c.textAlign='center';c.font=`${I(b.fs*1.5/72)}px ${fam}`;
-    c.fillText(page.first===false?'Contents (continued)':'Contents',cv.width/2,I(TOPM)+lead*1.4);
-    c.textAlign='left';
+    let y=I(TOPM)+lead;
+    if(page.first!==false){
+      c.textAlign='center';c.font=`${I(b.fs*1.75/72)}px ${fam}`;
+      c.fillText('TABLE OF CONTENTS',cv.width/2,I(TOPM)+lead*1.6);
+      drawBracketsCanvas(c,left,colW,I(TOPM)+lead*1.6,I);
+      c.textAlign='left';
+      y=I(TOPM)+lead*3.4;
+    }
     (page.entries||[]).forEach((e,i)=>{
-      const y=I(TOPM)+lead*3.4+i*lead;
+      const rowY=y+i*lead;
+      const num=String(e.page);
+      c.textAlign='right';c.font=`${I(b.fs/72)}px ${fam}`;
+      c.fillText(num,left+colW,rowY);
+      const numW=c.measureText(num).width;
+      c.textAlign='left';
+      let label;
       if(e.kind==='section'){
         c.font=`bold ${I(b.fs*1.02/72)}px ${fam}`;
-        c.fillText(e.title.slice(0,50),left,y);
+        label=e.title;
       }else{
         c.font=`${I(b.fs/72)}px ${fam}`;
-        const label='   '+e.title.slice(0,44)+(e.author?' — '+e.author:'');
-        c.fillText(label.slice(0,52),left,y);
+        label=e.title+(e.author?' by '+e.author:'');
       }
-      c.textAlign='right';c.fillText(String(e.page),left+colW,y);c.textAlign='left';
+      const fullLabel=label;
+      const maxLabelW=colW-numW-I(.22);
+      while(label.length>4&&c.measureText(label).width>maxLabelW)label=label.slice(0,-1);
+      if(label!==fullLabel)label=label.replace(/.{1,3}$/,'…');
+      c.fillText(label,left,rowY);
+      const labelW=c.measureText(label).width;
+      const dotW=c.measureText('.').width||I(.02);
+      const gapStart=left+labelW+I(.05), gapEnd=left+colW-numW-I(.08);
+      const dots=Math.max(0,Math.floor((gapEnd-gapStart)/dotW));
+      if(dots>0)c.fillText('.'.repeat(dots),gapStart,rowY);
     });
   }
   else if(page.kind==='poem'){
@@ -1264,20 +1298,39 @@ async function buildPDF(){
       }
     }
     else if(page.kind==='toc'){
-      doc.setFont(fontName,'normal');doc.setFontSize(b.fs*1.5);
-      doc.text(page.first===false?'Contents (continued)':'Contents',b.tw/2,TOPM+lead*1.4,{align:'center'});
+      let y0=TOPM+lead;
+      if(page.first!==false){
+        doc.setFont(fontName,'normal');doc.setFontSize(b.fs*1.75);
+        doc.text('TABLE OF CONTENTS',b.tw/2,TOPM+lead*1.6,{align:'center'});
+        drawBracketsPDF(doc,left,colW,TOPM+lead*1.6);
+        y0=TOPM+lead*3.4;
+      }
       (page.entries||[]).forEach((e,i)=>{
-        const y=TOPM+lead*3.4+i*lead;
-        if(y>b.th-BOTM)return; // safety net; tocCapacity should already keep every entry on-page
+        const y=y0+i*lead;
+        if(y>b.th-BOTM)return; // safety net; capacity math should already keep every entry on-page
+        doc.setFont(fontName,'normal');doc.setFontSize(b.fs);
+        const num=String(e.page);
+        doc.text(num,left+colW,y,{align:'right'});
+        const numW=doc.getTextWidth(num);
+        let label;
         if(e.kind==='section'){
           doc.setFont(fontName,'bold');doc.setFontSize(b.fs*1.02);
-          doc.text(e.title,left,y,{maxWidth:colW-0.5});
+          label=e.title;
         }else{
           doc.setFont(fontName,'normal');doc.setFontSize(b.fs);
-          const label='   '+e.title+(e.author?' — '+e.author:'');
-          doc.text(label,left,y,{maxWidth:colW-0.5});
+          label=e.title+(e.author?' by '+e.author:'');
         }
-        doc.text(String(e.page),left+colW,y,{align:'right'});
+        const fullLabel=label;
+        const maxLabelW=colW-numW-.22;
+        while(label.length>4&&doc.getTextWidth(label)>maxLabelW)label=label.slice(0,-1);
+        if(label!==fullLabel)label=label.replace(/.{1,3}$/,'…');
+        doc.text(label,left,y);
+        const labelW=doc.getTextWidth(label);
+        doc.setFont(fontName,'normal');doc.setFontSize(b.fs);
+        const dotW=doc.getTextWidth('.')||.02;
+        const gapStart=left+labelW+.05, gapEnd=left+colW-numW-.08;
+        const dots=Math.max(0,Math.floor((gapEnd-gapStart)/dotW));
+        if(dots>0)doc.text('.'.repeat(dots),gapStart,y);
       });
     }
     else if(page.kind==='poem'){
