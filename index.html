@@ -364,7 +364,8 @@ function addManualPoem(){
   const lines=body.replace(/\r\n?/g,'\n').split('\n');
   while(lines.length&&!lines[0].trim())lines.shift();
   while(lines.length&&!lines[lines.length-1].trim())lines.pop();
-  const authorName=$('mAuthor').value.trim(), authorUser=$('mUsername').value.trim();
+  let authorName=$('mAuthor').value.trim(), authorUser=$('mUsername').value.trim();
+  if(!authorName&&authorUser)authorName=authorUser; // no full name given: use the Neopoet username for both
   manualPoems.push({kind:'poem',title,author:authorName,username:authorUser,
     location:$('mLocation').value.trim(),lines});
   rememberAuthor(authorName,authorUser);
@@ -1777,9 +1778,10 @@ function addFromBacklog(i){
   const p=BACKLOG_POEMS[i];
   if(!p)return;
   if(inputMode!=='one')setMode('one');
-  manualPoems.push({kind:'poem',title:p.title,author:p.author,username:p.username,location:p.location,
+  const author=p.author||p.username; // no full name on file: use the Neopoet username for both
+  manualPoems.push({kind:'poem',title:p.title,author,username:p.username,location:p.location,
     lines:p.lines.slice()});
-  rememberAuthor(p.author,p.username);
+  rememberAuthor(author,p.username);
   rememberLocation(p.location);
   rememberAuthorLocation(p.author,p.location);
   rememberAuthorUsername(p.author,p.username);
@@ -1814,7 +1816,7 @@ function prefillFromRelease(i){
   if(!r)return;
   if(inputMode!=='one')setMode('one');
   $('mTitle').value=r.title;
-  $('mAuthor').value=r.author;
+  $('mAuthor').value=r.author||r.username; // no full name on file: use the Neopoet username for both
   onAuthorFieldChange();
   if(r.username&&!$('mUsername').value.trim())$('mUsername').value=r.username;
   if(r.location&&!$('mLocation').value.trim())$('mLocation').value=r.location;
