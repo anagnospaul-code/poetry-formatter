@@ -362,6 +362,7 @@ function addManualPoem(){
   rememberAuthor(authorName,authorUser);
   rememberLocation($('mLocation').value);
   rememberAuthorLocation(authorName,$('mLocation').value);
+  rememberAuthorUsername(authorName,authorUser);
   $('mTitle').value='';$('mAuthor').value='';$('mUsername').value='';$('mLocation').value='';$('mBody').value='';
   $('mTitle').focus();
   renderPreview();
@@ -566,6 +567,7 @@ function layout(){
   harvestAuthors(entries);
   harvestLocations(entries);
   harvestAuthorLocations(entries);
+  harvestAuthorUsernames(entries);
   const [tw,th]=$('trim').value.split('x').map(Number);
   const fs=parseFloat($('fsize').value);
   const face=$('face').value;
@@ -1657,14 +1659,49 @@ function harvestAuthorLocations(entries){
     try{ localStorage.setItem(AUTHOR_LOCATIONS_KEY,JSON.stringify(map)); }catch(e){}
   }
 }
+// ── Author → Neopoet username memory ─────────────────────────────────
+const AUTHOR_USERNAMES_KEY='poetryFormatterAuthorUsernames_v1';
+function loadAuthorUsernames(){
+  try{
+    const raw=JSON.parse(localStorage.getItem(AUTHOR_USERNAMES_KEY)||'null');
+    if(raw&&typeof raw==='object')return raw;
+  }catch(e){}
+  return {};
+}
+function rememberAuthorUsername(author,username){
+  author=(author||'').trim();username=(username||'').trim();
+  if(!author||!username)return;
+  const map=loadAuthorUsernames();
+  const key=author.toLowerCase();
+  if(map[key]!==username){
+    map[key]=username;
+    try{ localStorage.setItem(AUTHOR_USERNAMES_KEY,JSON.stringify(map)); }catch(e){}
+  }
+}
+function harvestAuthorUsernames(entries){
+  const map=loadAuthorUsernames();
+  let changed=false;
+  (entries||[]).forEach(e=>{
+    if(e.kind&&e.kind!=='poem')return;
+    const author=(e.author||'').trim(),u=(e.username||'').trim();
+    if(!author||!u)return;
+    const key=author.toLowerCase();
+    if(!map[key]){map[key]=u;changed=true;}
+  });
+  if(changed){
+    try{ localStorage.setItem(AUTHOR_USERNAMES_KEY,JSON.stringify(map)); }catch(e){}
+  }
+}
 function onAuthorFieldChange(){
-  const nameEl=$('mAuthor'),locEl=$('mLocation');
-  if(!nameEl||!locEl)return;
+  const nameEl=$('mAuthor'),locEl=$('mLocation'),userEl=$('mUsername');
+  if(!nameEl)return;
   const name=nameEl.value.trim();
   if(!name)return;
-  const map=loadAuthorLocations();
-  const known=map[name.toLowerCase()];
-  if(known&&!locEl.value.trim())locEl.value=known;
+  const key=name.toLowerCase();
+  const knownLoc=loadAuthorLocations()[key];
+  if(knownLoc&&locEl&&!locEl.value.trim())locEl.value=knownLoc;
+  const knownUser=loadAuthorUsernames()[key];
+  if(knownUser&&userEl&&!userEl.value.trim())userEl.value=knownUser;
 }
 
 // ── Remembered authors/usernames ─────────────────────────────────────
@@ -1734,11 +1771,13 @@ function addFromBacklog(i){
   rememberAuthor(p.author,p.username);
   rememberLocation(p.location);
   rememberAuthorLocation(p.author,p.location);
+  rememberAuthorUsername(p.author,p.username);
   renderPreview();
 }
 harvestAuthors(BACKLOG_POEMS);
 harvestLocations(BACKLOG_POEMS);
 harvestAuthorLocations(BACKLOG_POEMS);
+harvestAuthorUsernames(BACKLOG_POEMS);
 renderBacklog();
 
 buildAuthorLists();
