@@ -286,6 +286,11 @@ const SPINE_PER_PAGE={white:.002252,cream:.0025};
 const SPINE_TEXT_MIN_PAGES=79;
 const SAFETY=.25;
 const BARCODE_W=2, BARCODE_H=1.2;
+// KDP's published minimum barcode size and required clearance from the
+// trim/spine edge (its help pages list 2″×1.2″ as the suggested size and
+// 1.4″×0.8″ as the minimum, with 0.25″ clear of the trim and spine).
+const KDP_BARCODE_MIN_W=1.4, KDP_BARCODE_MIN_H=0.8, KDP_BARCODE_MIN_CLEARANCE=0.25;
+const BARCODE_CLEARANCE=KDP_BARCODE_MIN_CLEARANCE;
 
 const HARD_TRIMS=[[5.5,8.5],[6,9],[6.14,9.21],[7,10],[8.25,11]];
 const HARD_MIN_PAGES=75, HARD_MAX_PAGES=550;
@@ -786,8 +791,8 @@ function renderPreview(){
       c.moveTo(frontX+I(hinge),0); c.lineTo(frontX+I(hinge),cv.height); c.stroke();
     }
     c.strokeStyle='rgba(255,60,60,.8)';
-    const bcY=d.binding==='hardcover'?cv.height-I(.76+BARCODE_H):cv.height-I(edge+BARCODE_H);
-    const bcX=d.binding==='hardcover'?backX+backW-I(hinge+.25+BARCODE_W):backX+backW-I(edge+BARCODE_W);
+    const bcY=d.binding==='hardcover'?cv.height-I(.76+BARCODE_H):cv.height-I(edge+BARCODE_CLEARANCE+BARCODE_H);
+    const bcX=d.binding==='hardcover'?backX+backW-I(hinge+.25+BARCODE_W):backX+backW-I(edge+BARCODE_CLEARANCE+BARCODE_W);
     c.strokeRect(bcX,bcY,I(BARCODE_W),I(BARCODE_H));
     c.setLineDash([]);
   }
@@ -1160,12 +1165,45 @@ function compareToOriginal(d,edge,safety,hinge){
 function barcodeAreaCheck(d,edge,safety,hinge){
   const DPI=90;
   const {c,cv,I,backX,backW}=renderBackgroundOnly(d,edge,safety,hinge,DPI);
-  const bcY=d.binding==='hardcover'?cv.height-I(.76+BARCODE_H):cv.height-I(edge+BARCODE_H);
-  const bcX=d.binding==='hardcover'?backX+backW-I(hinge+.25+BARCODE_W):backX+backW-I(edge+BARCODE_W);
+  const bcY=d.binding==='hardcover'?cv.height-I(.76+BARCODE_H):cv.height-I(edge+BARCODE_CLEARANCE+BARCODE_H);
+  const bcX=d.binding==='hardcover'?backX+backW-I(hinge+.25+BARCODE_W):backX+backW-I(edge+BARCODE_CLEARANCE+BARCODE_W);
   const r=sampleRegion(c,bcX,bcY,I(BARCODE_W),I(BARCODE_H));
   if(r.sd<0.08) return {cls:'ok',note:'calm there — fine under the printed barcode'};
   if(r.sd<0.15) return {cls:'warn',note:'a little busy under where the barcode prints — likely fine, but check the preview'};
   return {cls:'bad',note:'busy/detailed image sits right where KDP prints the barcode — consider repositioning the photo'};
+}
+// Warns when the spine title is long enough, relative to how narrow the
+// spine is, that it would crowd the top/bottom of the spine or run into
+// the author line below it — re-using the exact sizing math drawPage/
+// renderCoverArt uses for the real spine text, so the check matches what
+// actually gets drawn.
+function spineTextFitCheck(d,edge,safety,hinge){
+  if(!$('spineText')||!$('spineText').checked||d.pages<SPINE_TEXT_MIN_PAGES||d.spine<=.12)
+    return null; // spine text isn't shown at all -- nothing to check
+  const DPI=90;
+  const {c,cv,I}=renderBackgroundOnly(d,edge,safety,hinge,DPI);
+  const scFamily='"Cinzel","Lora","Times New Roman",Times,serif';
+  const bigPx=I(Math.min(.135,d.spine*.48)), smallPx=bigPx*0.66;
+  const tracking=bigPx*0.20;
+  const titleWords=(($('cTitle').value||'').replace(/\n/g,' ').trim().toUpperCase()).split(/\s+/).filter(Boolean);
+  if(!titleWords.length) return null;
+  const layout=scLayout(c,titleWords,bigPx,smallPx,scFamily,700,tracking);
+  const titleCenterY=cv.height*0.36, authorCenterY=cv.height*0.84;
+  const topLimit=I(edge+safety), bottomLimit=authorCenterY-I(.12);
+  const half=layout.width/2;
+  if(titleCenterY-half>=topLimit && titleCenterY+half<=bottomLimit)
+    return {cls:'ok',note:'title fits the spine at this length'};
+  return {cls:'warn',note:'the spine title is long for how narrow this spine is — it may crowd the top/bottom or run into the author line; a shorter title (or more pages, for a wider spine) reads more cleanly'};
+}
+// Confirms the reserved barcode box itself — size and clearance from the
+// trim/spine edges — meets what KDP actually requires, independent of
+// what's drawn underneath it (that's barcodeAreaCheck, above).
+function barcodeSizeCheck(){
+  const sizeOk=BARCODE_W>=KDP_BARCODE_MIN_W&&BARCODE_H>=KDP_BARCODE_MIN_H;
+  const clearanceOk=BARCODE_CLEARANCE>=KDP_BARCODE_MIN_CLEARANCE;
+  if(sizeOk&&clearanceOk)
+    return {cls:'ok',note:`${BARCODE_W}″×${BARCODE_H}″ reserved, kept ${BARCODE_CLEARANCE}″ clear of the trim/spine — meets KDP's minimum (${KDP_BARCODE_MIN_W}″×${KDP_BARCODE_MIN_H}″, ${KDP_BARCODE_MIN_CLEARANCE}″ clearance)`};
+  return {cls:'bad',note:`reserved area or clearance is under KDP's minimum (${KDP_BARCODE_MIN_W}″×${KDP_BARCODE_MIN_H}″, ${KDP_BARCODE_MIN_CLEARANCE}″ clearance) — this needs fixing in the app itself`};
 }
 
 function renderChecks(d){
@@ -1210,6 +1248,10 @@ function renderChecks(d){
   {
     const {edge,safety,hinge}=edgeVals(d);
     try{
+      const sf=spineTextFitCheck(d,edge,safety,hinge);
+      if(sf) add('Spine title fit',sf.note,sf.cls);
+    }catch(e){}
+    try{
       const cmp=compareToOriginal(d,edge,safety,hinge);
       if(cmp&&cmp.length) cmp.forEach(row=>add('Matches original — '+row.label,row.note,row.cls));
     }catch(e){}
@@ -1219,6 +1261,8 @@ function renderChecks(d){
     }catch(e){
       add('Barcode area','kept clear, bottom-right of back cover','ok');
     }
+    const bs=barcodeSizeCheck();
+    add('Barcode reserved size',bs.note,bs.cls);
   }
   $('checks').innerHTML=rows.join('');
 }

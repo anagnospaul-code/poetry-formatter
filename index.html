@@ -271,15 +271,23 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
       <h2>3 · Check against KDP</h2>
       <ul class="checks" id="checks"></ul>
       <div class="hint" id="lengthWarnings" style="display:none;color:var(--warn)"></div>
+      <div class="hint" id="metadataWarnings" style="display:none;color:var(--warn)"></div>
 
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line,rgba(127,127,127,.25))">
         <h3 style="margin:0 0 8px;font-size:.95rem">Print cost &amp; royalty (US, KDP paperback)</h3>
-        <div class="fld">
-          <label>Your list price ($)</label>
-          <input type="number" id="pcPrice" min="0" step="0.01" placeholder="e.g. 14.99" oninput="renderPrintCost()">
+        <div class="row">
+          <div class="fld"><label>Your list price ($)</label>
+            <input type="number" id="pcPrice" min="0" step="0.01" placeholder="e.g. 14.99" oninput="renderPrintCost()"></div>
+          <div class="fld"><label>Interior paper</label>
+            <select id="pcPaper" onchange="renderPrintCost()">
+              <option value="white">White (B&amp;W)</option>
+              <option value="cream">Cream (B&amp;W)</option>
+              <option value="colorstd">Standard color</option>
+              <option value="colorprem">Premium color</option>
+            </select></div>
         </div>
         <ul class="checks" id="printCostChecks"></ul>
-        <div class="hint">Estimated from Amazon's published black-ink, white/cream-paper formula for the US store — the real number can differ slightly by paper type or marketplace, so confirm the exact figure in KDP's own pricing calculator before you set a price.</div>
+        <div class="hint">Estimated from Amazon's published black-ink, white/cream-paper formula for the US store — the real number can differ slightly by paper type or marketplace, so confirm the exact figure in KDP's own pricing calculator before you set a price. Spine width uses KDP's published per-page multiplier for the paper chosen above and is a close estimate — KDP's own cover calculator is the final word.</div>
       </div>
 
       <div class="btns" style="margin-top:13px">
@@ -609,11 +617,12 @@ function escapeHtml(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&
 // Combine an author name, their Neopoet username, and (optionally) their
 // location for display, e.g. "Jane Doe  ·  Neopoet: jdoe123  ·  Gaborone,
 // Botswana" — any part may be missing.
-function bylineText(author,username,location){
+function bylineText(author,username,location,extra){
   const parts=[];
   if(author)parts.push(author);
   if(username)parts.push(`Neopoet: ${username}`);
   if(location)parts.push(location);
+  if(extra)parts.push(extra);
   return parts.join('  ·  ');
 }
 // "Author (Username)" — the format the real Fiverr-delivered PDF actually
@@ -1206,10 +1215,33 @@ function renderFoundList(entries){
       return `<li style="${opacityStyle}font-weight:600;background:var(--accent-soft)">`+
         `<span class="ftext">§ ${escapeHtml(e.title)}</span>${mv}${rm}</li>`;
     n++;
+    let badges='';
+    const dupHit=backlogDupMap().get(normKey(e.title)+'|'+normKey(e.author));
+    if(dupHit)badges+=` <span class="v warn" title="${escapeHtml(dupHit.join('; '))}" style="font-size:.72rem;white-space:nowrap">⚠ already in ${escapeHtml(dupHit[0])}</span>`;
+    const missing=[];
+    if(!e.author&&!e.username)missing.push('author');
+    if(!e.location)missing.push('location');
+    if(missing.length)badges+=` <span class="v warn" style="font-size:.72rem;white-space:nowrap">missing ${missing.join('/')}</span>`;
     return `<li style="${opacityStyle}"><span class="fnum">${n}.</span><span class="ftext">${escapeHtml(e.title)}`+
       ((e.author||e.username)?` <span class="fauthor">— ${escapeHtml(bylineText(e.author,e.username,e.location))}</span>`:'')+
-      `</span>${tagSel}${mv}${rm}</li>`;
+      `</span>${badges}${tagSel}${mv}${rm}</li>`;
   }).join('');
+}
+// Cross-edition duplicate lookup: title+author (normalized) -> the
+// earlier edition(s) it already appeared in, built once from the merged
+// 4-edition backlog and reused on every render.
+let _backlogDupMap=null;
+function normKey(s){return (s||'').trim().toLowerCase().replace(/\s+/g,' ');}
+function backlogDupMap(){
+  if(_backlogDupMap)return _backlogDupMap;
+  _backlogDupMap=new Map();
+  BACKLOG_POEMS.forEach(p=>{
+    if(p.kind!=='poem'||!p.title)return;
+    const key=normKey(p.title)+'|'+normKey(p.author);
+    if(!_backlogDupMap.has(key))_backlogDupMap.set(key,[]);
+    _backlogDupMap.get(key).push(p.source||'an earlier edition');
+  });
+  return _backlogDupMap;
 }
 function setBookTag(i,val){
   if(!manualPoems[i])return;
@@ -1218,7 +1250,9 @@ function setBookTag(i,val){
 }
 function turn(d){spreadAt=Math.max(0,spreadAt+d);renderPreview();}
 
+let lastCheckBuild=null;
 function renderChecks(b){
+  lastCheckBuild=b;
   const pages=b.pages.length;
   const rows=[];
   const add=(k,v,cls)=>rows.push(`<li><span class="k">${k}</span><span class="v ${cls}">${v}</span></li>`);
@@ -1256,6 +1290,23 @@ function renderChecks(b){
       warnEl.style.display='none';warnEl.innerHTML='';
     }
   }
+  const metaGaps=poemsOnly.filter(p=>!p.author&&!p.username||!p.location);
+  const metaEl=$('metadataWarnings');
+  if(metaEl){
+    if(metaGaps.length){
+      metaEl.style.display='block';
+      const list=metaGaps.slice(0,8).map(p=>{
+        const missing=[];
+        if(!p.author&&!p.username)missing.push('author');
+        if(!p.location)missing.push('location');
+        return `“${escapeHtml(p.title)}” (missing ${missing.join('/')})`;
+      }).join('; ');
+      metaEl.innerHTML=`⚠ ${metaGaps.length} poem${metaGaps.length===1?'':'s'} missing author or location — worth filling in before you lock the layout: `+
+        list+(metaGaps.length>8?` …and ${metaGaps.length-8} more`:'');
+    }else{
+      metaEl.style.display='none';metaEl.innerHTML='';
+    }
+  }
   renderPrintCost(b);
 }
 // KDP's published black-ink / white-or-cream-paper formula for the US
@@ -1268,13 +1319,28 @@ function kdpPrintCost(tw,th,pages){
   if(large)return p<=110?2.84:1.00+0.017*p;
   return p<=110?2.30:1.00+0.012*p;
 }
+// KDP's published spine-width multipliers, inches per page (from KDP's
+// own cover-calculator help topic). Spine text needs at least 79 pages.
+const KDP_SPINE_MULT={white:0.002252,cream:0.0025,colorstd:0.002252,colorprem:0.002347};
+const KDP_SPINE_MIN_PAGES_FOR_TEXT=79;
+function kdpSpineWidth(paper,pages){
+  const mult=KDP_SPINE_MULT[paper]||KDP_SPINE_MULT.white;
+  return Math.max(KDP_MIN_PAGES,pages)*mult;
+}
 function renderPrintCost(b){
+  b=b||lastCheckBuild;
   const host=$('printCostChecks');
-  if(!host)return;
+  if(!host||!b)return;
   const rows=[];
   const add=(k,v,cls)=>rows.push(`<li><span class="k">${k}</span><span class="v ${cls||''}">${v}</span></li>`);
   const printCost=kdpPrintCost(b.tw,b.th,b.pages.length);
   add('Estimated print cost',`$${printCost.toFixed(2)}`,'ok');
+  const paperEl=$('pcPaper');
+  const paper=paperEl?paperEl.value:'white';
+  const spine=kdpSpineWidth(paper,b.pages.length);
+  add('Estimated spine width',`${spine.toFixed(3)}″`,'ok');
+  if(b.pages.length<KDP_SPINE_MIN_PAGES_FOR_TEXT)
+    add('&nbsp;↳ Spine text','KDP requires 79+ pages to print spine text — this book is under that','warn');
   const priceEl=$('pcPrice');
   const price=priceEl?parseFloat(priceEl.value):NaN;
   if(!isNaN(price)&&price>0){
@@ -2127,7 +2193,7 @@ buildAuthorLists();
 // document) is kept in this browser's local storage, so closing the tab,
 // reopening the app, or an update to the app itself doesn't lose your
 // work. It never leaves your device.
-const SAVE_FIELDS=['src','trim','fsize','face','bTitle','bAuthor','bYear','optToc','optRight','optNums','ornament','bISBN','bDedication','optHeaders','bookFilter','pcPrice'];
+const SAVE_FIELDS=['src','trim','fsize','face','bTitle','bAuthor','bYear','optToc','optRight','optNums','ornament','bISBN','bDedication','optHeaders','bookFilter','pcPrice','pcPaper'];
 const STORAGE_KEY='poetryFormatterState_v1';
 function saveState(){
   try{

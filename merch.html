@@ -111,6 +111,26 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
     </div>
 
     <div class="card">
+      <h2>Saved presets</h2>
+      <div class="hint">Keep a few go-to layouts (e.g. "mug template", "tote template") and reload them instead of rebuilding from scratch.</div>
+      <div class="row" style="margin-top:8px">
+        <div class="fld" style="flex:2;min-width:160px"><label style="margin-bottom:2px">Preset name</label>
+          <input type="text" id="presetName" placeholder="e.g. mug template"></div>
+      </div>
+      <div class="btns">
+        <button class="ghost" onclick="savePreset()">Save current design as preset</button>
+      </div>
+      <div class="fld" style="margin-top:10px"><label style="margin-bottom:2px">Load or delete a saved preset</label>
+        <select id="presetSelect" onchange="renderPresetButtons()"></select>
+      </div>
+      <div class="btns">
+        <button class="ghost" onclick="loadPreset()">Load</button>
+        <button class="ghost" onclick="deletePreset()">Delete</button>
+      </div>
+      <div class="hint" id="presetNote"></div>
+    </div>
+
+    <div class="card">
       <h2>2 &middot; Add to design</h2>
       <div class="btns">
         <button onclick="addText()">+ Text</button>
@@ -143,6 +163,16 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
     <div class="btns" style="margin-top:12px">
       <button onclick="exportPNG()">Download design PNG</button>
       <button class="ghost" onclick="clearAll()">Clear design</button>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>Batch export</h2>
+      <div class="hint">Export this same design onto several product shapes at once — each one cropped to that product's own print area, same as the single download above.</div>
+      <div class="swrow" id="batchProductRow" style="flex-wrap:wrap;gap:10px;margin-top:8px"></div>
+      <div class="btns" style="margin-top:8px">
+        <button class="ghost" onclick="exportBatchPNG()">Download selected products</button>
+      </div>
+      <div class="hint" id="batchExportNote"></div>
     </div>
 
     <div class="card" style="margin-top:16px">
@@ -212,6 +242,23 @@ function buildSwatches(){
   });
 }
 
+function buildBatchProductRow(){
+  const box=document.getElementById('batchProductRow');
+  if(!box)return;
+  box.innerHTML='';
+  const current=document.getElementById('product').value;
+  Object.keys(PRODUCTS).forEach(key=>{
+    const label=document.createElement('label');
+    label.style.cssText='display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer';
+    const cb=document.createElement('input');
+    cb.type='checkbox'; cb.className='batchProduct'; cb.value=key;
+    cb.checked=(key===current);
+    cb.style.width='auto';
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(PRODUCTS[key].label));
+    box.appendChild(label);
+  });
+}
 function printArea(){
   const p=PRODUCTS[document.getElementById('product').value];
   return {x:p.area.x*cv.width,y:p.area.y*cv.height,w:p.area.w*cv.width,h:p.area.h*cv.height};
@@ -482,6 +529,94 @@ async function addQRCode(){
 }
 function clearAll(){ if(!layers.length)return; if(!confirm('Clear the whole design?'))return; layers=[];selId=null;renderStage();renderEditor(); }
 
+// ── Named presets ─────────────────────────────────────────────────────
+// A preset is the whole current design (product, color, and every layer)
+// saved under a name in localStorage, so it can be reloaded later instead
+// of rebuilding a layout from scratch. Image layers can't be JSON'd
+// directly (they hold a live Image object), so each is stored as its
+// data: URL and rebuilt into a fresh Image on load.
+const MERCH_PRESETS_KEY='poetryFormatterMerchPresets_v1';
+function loadPresets(){
+  try{ return JSON.parse(localStorage.getItem(MERCH_PRESETS_KEY)||'{}'); }
+  catch(e){ return {}; }
+}
+function savePresetsMap(map){
+  try{ localStorage.setItem(MERCH_PRESETS_KEY,JSON.stringify(map)); }catch(e){}
+}
+function serializeLayer(ly){
+  const base={id:ly.id,type:ly.type,x:ly.x,y:ly.y,scale:ly.scale,rot:ly.rot||0};
+  if(ly.type==='text')return {...base,text:ly.text,font:ly.font,size:ly.size,color:ly.color};
+  return {...base,w:ly.w,h:ly.h,imgSrc:ly.img?ly.img.src:''};
+}
+function renderPresetSelect(){
+  const sel=document.getElementById('presetSelect');
+  if(!sel)return;
+  const names=Object.keys(loadPresets()).sort((a,b)=>a.localeCompare(b));
+  const cur=sel.value;
+  sel.innerHTML=names.length?names.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('')
+                      :'<option value="">No presets saved yet</option>';
+  if(names.includes(cur))sel.value=cur;
+}
+function renderPresetButtons(){ /* hook point if the UI grows per-selection state later */ }
+function savePreset(){
+  const nameEl=document.getElementById('presetName');
+  const note=document.getElementById('presetNote');
+  const name=(nameEl?nameEl.value:'').trim();
+  if(!name){ if(note)note.textContent='Give this preset a name first.'; return; }
+  if(!layers.length){ if(note)note.textContent='Add something to the design before saving a preset.'; return; }
+  const map=loadPresets();
+  const isNew=!(name in map);
+  map[name]={
+    product:document.getElementById('product').value,
+    bgColor,
+    layers:layers.map(serializeLayer),
+  };
+  savePresetsMap(map);
+  renderPresetSelect();
+  const sel=document.getElementById('presetSelect');
+  if(sel)sel.value=name;
+  if(note)note.textContent=isNew?`Saved "${name}".`:`Updated "${name}".`;
+  if(nameEl)nameEl.value='';
+}
+function loadPreset(){
+  const sel=document.getElementById('presetSelect');
+  const note=document.getElementById('presetNote');
+  const name=sel?sel.value:'';
+  const map=loadPresets();
+  if(!name||!map[name]){ if(note)note.textContent='Pick a saved preset first.'; return; }
+  if(layers.length&&!confirm(`Load "${name}"? This replaces the current design.`))return;
+  const preset=map[name];
+  document.getElementById('product').value=preset.product;
+  bgColor=preset.bgColor;
+  const imgLoads=[];
+  const newLayers=preset.layers.map(saved=>{
+    if(saved.type==='text')return {...saved};
+    const img=new Image();
+    const p=new Promise(resolve=>{ img.onload=resolve; img.onerror=resolve; });
+    img.src=saved.imgSrc;
+    imgLoads.push(p);
+    return {...saved,img};
+  });
+  nextId=Math.max(1,...newLayers.map(l=>l.id+1),nextId);
+  layers=newLayers;
+  selId=null;
+  Promise.all(imgLoads).then(()=>{ renderStage(); renderEditor(); });
+  renderStage(); // draw immediately for text/product; images fill in once loaded
+  if(note)note.textContent=`Loaded "${name}".`;
+}
+function deletePreset(){
+  const sel=document.getElementById('presetSelect');
+  const note=document.getElementById('presetNote');
+  const name=sel?sel.value:'';
+  const map=loadPresets();
+  if(!name||!map[name]){ if(note)note.textContent='Pick a saved preset first.'; return; }
+  if(!confirm(`Delete the preset "${name}"? This can't be undone.`))return;
+  delete map[name];
+  savePresetsMap(map);
+  renderPresetSelect();
+  if(note)note.textContent=`Deleted "${name}".`;
+}
+
 // Pointer drag to move the selected (or hit) layer
 function hitTest(px,py){
   const a=printArea();
@@ -523,9 +658,13 @@ cv.addEventListener('pointermove',ev=>{
 });
 ['pointerup','pointercancel'].forEach(evt=>cv.addEventListener(evt,()=>{drag=null;}));
 
-function exportPNG(){
-  if(!layers.length){alert('Add something to the design first.');return;}
-  const a=printArea();
+// Renders the current layer set onto a fresh full-resolution canvas sized
+// to the given product's print area (same layer x/y/scale, since those are
+// stored as 0–1 fractions of the print area, not fixed pixels — this is
+// what makes the same design reusable across differently-shaped products).
+function renderDesignCanvas(productKey){
+  const p=PRODUCTS[productKey];
+  const a={x:p.area.x*cv.width,y:p.area.y*cv.height,w:p.area.w*cv.width,h:p.area.h*cv.height};
   const out=document.createElement('canvas');
   const SCALE=2400/a.w;
   out.width=Math.round(a.w*SCALE); out.height=Math.round(a.h*SCALE);
@@ -547,12 +686,37 @@ function exportPNG(){
     }
     octx.restore();
   });
-  out.toBlob(blob=>{
-    const url=URL.createObjectURL(blob);
-    const a2=document.createElement('a');
-    a2.href=url;a2.download='design.png';a2.click();
-    setTimeout(()=>URL.revokeObjectURL(url),2000);
+  return out;
+}
+function downloadCanvasPNG(canvas,filename){
+  return new Promise(resolve=>{
+    canvas.toBlob(blob=>{
+      const url=URL.createObjectURL(blob);
+      const a2=document.createElement('a');
+      a2.href=url;a2.download=filename;a2.click();
+      setTimeout(()=>{URL.revokeObjectURL(url);resolve();},2000);
+    });
   });
+}
+function exportPNG(){
+  if(!layers.length){alert('Add something to the design first.');return;}
+  downloadCanvasPNG(renderDesignCanvas(document.getElementById('product').value),'design.png');
+}
+// Batch export: the same design, cropped to each checked product's own
+// print area, downloaded one PNG per product in one go.
+async function exportBatchPNG(){
+  if(!layers.length){alert('Add something to the design first.');return;}
+  const boxes=[...document.querySelectorAll('.batchProduct:checked')];
+  const note=document.getElementById('batchExportNote');
+  if(!boxes.length){ if(note)note.textContent='Check at least one product above.'; return; }
+  if(note)note.textContent=`Exporting ${boxes.length} file${boxes.length===1?'':'s'}…`;
+  for(const box of boxes){
+    const key=box.value;
+    const canvas=renderDesignCanvas(key);
+    await downloadCanvasPNG(canvas,`design-${key}.png`);
+  }
+  if(note)note.textContent=`Downloaded ${boxes.length} file${boxes.length===1?'':'s'}: `+
+    boxes.map(b=>PRODUCTS[b.value].label).join(', ');
 }
 
 // ---- Fourthwall publish (wired up for when API credentials are available) ----
@@ -661,6 +825,8 @@ function syncFromFormatterShared(){
   const savedUser=localStorage.getItem('fw_user'); if(savedUser)document.getElementById('fwUser').value=savedUser;
   syncFromFormatterShared();
   buildSwatches(); renderStage();
+  renderPresetSelect();
+  buildBatchProductRow();
 })();
 </script>
 </body>
