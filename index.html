@@ -255,6 +255,7 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
           <option value="frame">Open frame ⌐‾¬</option>
           <option value="notch">Single notch ⌐_¬</option>
           <option value="brackets">Corner brackets ⌐¬</option>
+          <option value="sectionbox">Section box ⌐══⌐ (traced from the real anthology)</option>
           <option value="diamond">Open diamond ──◇──</option>
           <option value="square">Open square ──□──</option>
           <option value="triangle">Open triangle ──△──</option>
@@ -1100,6 +1101,85 @@ function drawBracketsPDF(doc,left,colW,yBase){
   doc.setDrawColor(0);
 }
 
+// "Section box" ornament — the full rectangular frame with stepped,
+// notched tabs at all four corners that the real Fiverr-delivered 4th-
+// edition anthology uses on every section-divider page (confirmed
+// identical on both its "WINNERS FROM CONTEST ENTRIES" and "Neo Gems"
+// dividers). Traced point-for-point from that PDF's own vector path
+// (page 171's SVG export) the same way "brackets" was traced. The path
+// is a closed loop with perfect left-right mirror symmetry; only the
+// left side needs to be stored — SECBOX_LEFT_DELTAS walks from the
+// top-right corner of the left edge down to the bottom-right corner of
+// the left edge, with one 'stretch' run (the plain vertical side) that
+// scales to fit whatever box height is requested, so the fixed corner
+// tabs stay the real book's exact size regardless of box size. Here y
+// increases downward (this app's own page/canvas convention), unlike
+// the raw SVG trace, which used a flipped matrix.
+const SECBOX_LEFT_DELTAS=[
+  [0,18],[-18,0],[0,-9],[9,0],[0,18],[-18,0],
+  'stretch',
+  [18,0],[0,18],[-9,0],[0,-9],[18,0],[0,18],
+];
+const SECBOX_CLUSTER_PT=27; // fixed height (pt) of each corner cluster, top and bottom
+function sectionBoxOutlinePx(Wpx,Hpx,I){
+  const clusterPx=I(SECBOX_CLUSTER_PT/72);
+  const stretchPx=Math.max(I(2/72),Hpx-clusterPx*2);
+  let x=0,y=0;
+  const left=[[0,0]];
+  SECBOX_LEFT_DELTAS.forEach(d=>{
+    if(d==='stretch'){y+=stretchPx;}else{x+=I(d[0]/72);y+=I(d[1]/72);}
+    left.push([x,y]);
+  });
+  const Hb=left[left.length-1][1];
+  const pts=[...left,[Wpx,Hb]];
+  for(let i=left.length-2;i>=1;i--)pts.push([Wpx-left[i][0],left[i][1]]);
+  pts.push([Wpx,0]);
+  return pts;
+}
+function sectionBoxOutlineIn(Win,Hin){
+  const clusterIn=SECBOX_CLUSTER_PT/72;
+  const stretchIn=Math.max(2/72,Hin-clusterIn*2);
+  let x=0,y=0;
+  const left=[[0,0]];
+  SECBOX_LEFT_DELTAS.forEach(d=>{
+    if(d==='stretch'){y+=stretchIn;}else{x+=d[0]/72;y+=d[1]/72;}
+    left.push([x,y]);
+  });
+  const Hb=left[left.length-1][1];
+  const pts=[...left,[Win,Hb]];
+  for(let i=left.length-2;i>=1;i--)pts.push([Win-left[i][0],left[i][1]]);
+  pts.push([Win,0]);
+  return pts;
+}
+function drawSectionBoxCanvas(c,left,colW,yTop,hPx,I){
+  const pts=sectionBoxOutlinePx(colW,hPx,I);
+  c.save();c.strokeStyle='#8a8a8a';c.lineWidth=I(.022);
+  c.lineJoin='miter';c.lineCap='butt';
+  c.beginPath();
+  c.moveTo(left+pts[0][0],yTop+pts[0][1]);
+  pts.forEach(([px,py])=>c.lineTo(left+px,yTop+py));
+  c.closePath();c.stroke();c.restore();
+}
+function drawSectionBoxPDF(doc,left,colW,yTop,hIn){
+  const pts=sectionBoxOutlineIn(colW,hIn);
+  const abs=pts.map(([px,py])=>[left+px,yTop+py]);
+  const segs=[];
+  for(let i=1;i<abs.length;i++)segs.push([abs[i][0]-abs[i-1][0],abs[i][1]-abs[i-1][1]]);
+  doc.setDrawColor(138);doc.setLineWidth(.022);
+  doc.setLineJoin('miter');doc.setLineCap(0);
+  doc.lines(segs,abs[0][0],abs[0][1],[1,1],'S',true);
+  doc.setDrawColor(0);
+}
+// How tall a section-box ornament should be drawn for a given title font
+// size (inches), used by both the canvas and PDF renderers so they agree.
+function sectionBoxHeightIn(fs){
+  const fontIn=fs*1.7/72;
+  return Math.max(.95,fontIn*2.0);
+}
+function sectionBoxTopPadIn(fs){
+  return (fs*1.7/72)*0.95;
+}
+
 function buildPages(entries,tw,th,fs,gutter,startRight,wantToc,ornament,dedication){
   const lead=fs*1.52/72;
   const oGap=ornamentGap(fs,ornament);
@@ -1255,6 +1335,9 @@ function drawPage(cv,page,idx,b){
     c.fillText(page.title,cv.width/2,I(b.th*.46));
     if(b.ornament==='brackets'){
       drawBracketsCanvas(c,left,colW,I(b.th*.46),I);
+    }else if(b.ornament==='sectionbox'){
+      const hIn=sectionBoxHeightIn(b.fs),topPad=sectionBoxTopPadIn(b.fs);
+      drawSectionBoxCanvas(c,left,colW,I(b.th*.46)-I(topPad),I(hIn),I);
     }else if(b.ornament!=='none'){
       const g=I(ornamentGap(b.fs,b.ornament));
       drawOrnamentCanvas(c,cv.width/2,I(b.th*.46)+I(b.fs*.5/72)+g/2,b.ornament,I);
@@ -1331,8 +1414,13 @@ function drawPage(cv,page,idx,b){
           y+=I(b.fs*1.3/72);
         }
         if(page.ornament&&page.ornament!=='none'){
-          const g=I(ornamentGap(b.fs,page.ornament));
-          drawOrnamentCanvas(c,left+colW/2,y+g/2,page.ornament,I);
+          // "sectionbox" is the real book's full-frame divider treatment —
+          // it only makes sense around a section title, never repeated
+          // under every single poem, so poem titles fall back to a plain
+          // rule-and-dot in that case.
+          const orn=page.ornament==='sectionbox'?'rule-dot':page.ornament;
+          const g=I(ornamentGap(b.fs,orn));
+          drawOrnamentCanvas(c,left+colW/2,y+g/2,orn,I);
           y+=g;
         }
         y+=I(b.fs*.5/72);
@@ -1677,6 +1765,9 @@ async function buildPDF(){
       doc.text(page.title,b.tw/2,b.th*.46,{align:'center',maxWidth:colW});
       if(b.ornament==='brackets'){
         drawBracketsPDF(doc,left,colW,b.th*.46);
+      }else if(b.ornament==='sectionbox'){
+        const hIn=sectionBoxHeightIn(b.fs),topPad=sectionBoxTopPadIn(b.fs);
+        drawSectionBoxPDF(doc,left,colW,b.th*.46-topPad,hIn);
       }else if(b.ornament!=='none'){
         const g=ornamentGap(b.fs,b.ornament);
         drawOrnamentPDF(doc,b.tw/2,b.th*.46+b.fs*.5/72+g/2,b.ornament);
@@ -1757,8 +1848,9 @@ async function buildPDF(){
             y+=b.fs*1.3/72;
           }
           if(page.ornament&&page.ornament!=='none'){
-            const g=ornamentGap(b.fs,page.ornament);
-            drawOrnamentPDF(doc,left+colW/2,y+g/2,page.ornament);
+            const orn=page.ornament==='sectionbox'?'rule-dot':page.ornament;
+            const g=ornamentGap(b.fs,orn);
+            drawOrnamentPDF(doc,left+colW/2,y+g/2,orn);
             y+=g;
           }
           y+=b.fs*.5/72;
