@@ -360,6 +360,7 @@ function addManualPoem(){
   manualPoems.push({kind:'poem',title,author:authorName,username:authorUser,
     location:$('mLocation').value.trim(),lines});
   rememberAuthor(authorName,authorUser);
+  rememberLocation($('mLocation').value);
   $('mTitle').value='';$('mAuthor').value='';$('mUsername').value='';$('mLocation').value='';$('mBody').value='';
   $('mTitle').focus();
   renderPreview();
@@ -562,6 +563,7 @@ function layout(){
     renderStatusAll(res);
   }
   harvestAuthors(entries);
+  harvestLocations(entries);
   const [tw,th]=$('trim').value.split('x').map(Number);
   const fs=parseFloat($('fsize').value);
   const face=$('face').value;
@@ -1569,11 +1571,52 @@ const WORLD_CITIES=[["Kabul","Afghanistan"],["Tirana","Albania"],["Algiers","Alg
 function buildLocationList(){
   const dl=$('mLocationList');
   if(!dl)return;
+  const known=loadKnownLocations();
   const opts=[];
-  WORLD_COUNTRIES.forEach(c=>opts.push(c));
-  US_STATES.forEach(s=>opts.push(s+', United States'));
-  WORLD_CITIES.forEach(([city,country])=>opts.push(city+', '+country));
+  const seen=new Set();
+  known.locations.slice().sort((a,b)=>a.localeCompare(b)).forEach(l=>{
+    if(!seen.has(l.toLowerCase())){opts.push(l);seen.add(l.toLowerCase());}
+  });
+  WORLD_COUNTRIES.forEach(c=>{if(!seen.has(c.toLowerCase())){opts.push(c);seen.add(c.toLowerCase());}});
+  US_STATES.forEach(s=>{const v=s+', United States';if(!seen.has(v.toLowerCase())){opts.push(v);seen.add(v.toLowerCase());}});
+  WORLD_CITIES.forEach(([city,country])=>{const v=city+', '+country;if(!seen.has(v.toLowerCase())){opts.push(v);seen.add(v.toLowerCase());}});
   dl.innerHTML=opts.map(o=>`<option value="${escapeHtml(o)}">`).join('');
+}
+
+// ── Remembered locations ─────────────────────────────────────────────
+// Real locations from your own poets (manual entries, the backlog, or
+// pasted documents) surface first, ahead of the generic world list.
+const KNOWN_LOCATIONS_KEY='poetryFormatterLocations_v1';
+function loadKnownLocations(){
+  try{
+    const raw=JSON.parse(localStorage.getItem(KNOWN_LOCATIONS_KEY)||'null');
+    if(raw&&Array.isArray(raw.locations))return raw;
+  }catch(e){}
+  return {locations:[]};
+}
+function rememberLocation(loc){
+  loc=(loc||'').trim();
+  if(!loc)return;
+  const known=loadKnownLocations();
+  if(!known.locations.some(l=>l.toLowerCase()===loc.toLowerCase())){
+    known.locations.push(loc);
+    try{ localStorage.setItem(KNOWN_LOCATIONS_KEY,JSON.stringify(known)); }catch(e){}
+    buildLocationList();
+  }
+}
+function harvestLocations(entries){
+  const known=loadKnownLocations();
+  let changed=false;
+  (entries||[]).forEach(e=>{
+    const loc=(e.location||'').trim();
+    if(loc&&!known.locations.some(l=>l.toLowerCase()===loc.toLowerCase())){
+      known.locations.push(loc);changed=true;
+    }
+  });
+  if(changed){
+    try{ localStorage.setItem(KNOWN_LOCATIONS_KEY,JSON.stringify(known)); }catch(e){}
+    buildLocationList();
+  }
 }
 buildLocationList();
 
@@ -1642,9 +1685,11 @@ function addFromBacklog(i){
   manualPoems.push({kind:'poem',title:p.title,author:p.author,username:p.username,location:p.location,
     lines:p.lines.slice()});
   rememberAuthor(p.author,p.username);
+  rememberLocation(p.location);
   renderPreview();
 }
 harvestAuthors(BACKLOG_POEMS);
+harvestLocations(BACKLOG_POEMS);
 renderBacklog();
 
 buildAuthorLists();
