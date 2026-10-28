@@ -127,7 +127,7 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
       <div id="modeOne">
         <div class="fld"><label>Title of this poem</label><input type="text" id="mTitle" placeholder="e.g. Resurrection"></div>
         <div class="row">
-          <div class="fld"><label>Author (optional — leave blank if it's just yours)</label><input type="text" id="mAuthor" list="mAuthorList" placeholder="e.g. Mark Loiselle"><datalist id="mAuthorList"></datalist></div>
+          <div class="fld"><label>Author (optional — leave blank if it's just yours)</label><input type="text" id="mAuthor" list="mAuthorList" placeholder="e.g. Mark Loiselle" oninput="onAuthorFieldChange()" onchange="onAuthorFieldChange()"><datalist id="mAuthorList"></datalist></div>
           <div class="fld"><label>Neopoet username (optional)</label><input type="text" id="mUsername" list="mUsernameList" placeholder="e.g. mloiselle"><datalist id="mUsernameList"></datalist></div>
         </div>
         <div class="fld"><label>Location (optional — shown under the byline, e.g. for the "Corner brackets" ornament)</label><input type="text" id="mLocation" list="mLocationList" placeholder="e.g. Massachusetts, United States" autocomplete="off"><datalist id="mLocationList"></datalist></div>
@@ -361,6 +361,7 @@ function addManualPoem(){
     location:$('mLocation').value.trim(),lines});
   rememberAuthor(authorName,authorUser);
   rememberLocation($('mLocation').value);
+  rememberAuthorLocation(authorName,$('mLocation').value);
   $('mTitle').value='';$('mAuthor').value='';$('mUsername').value='';$('mLocation').value='';$('mBody').value='';
   $('mTitle').focus();
   renderPreview();
@@ -564,6 +565,7 @@ function layout(){
   }
   harvestAuthors(entries);
   harvestLocations(entries);
+  harvestAuthorLocations(entries);
   const [tw,th]=$('trim').value.split('x').map(Number);
   const fs=parseFloat($('fsize').value);
   const face=$('face').value;
@@ -1620,6 +1622,51 @@ function harvestLocations(entries){
 }
 buildLocationList();
 
+// ── Author → location memory ─────────────────────────────────────────
+// Picking a known author's name fills in the location they're usually
+// credited with, so you don't have to look it up again.
+const AUTHOR_LOCATIONS_KEY='poetryFormatterAuthorLocations_v1';
+function loadAuthorLocations(){
+  try{
+    const raw=JSON.parse(localStorage.getItem(AUTHOR_LOCATIONS_KEY)||'null');
+    if(raw&&typeof raw==='object')return raw;
+  }catch(e){}
+  return {};
+}
+function rememberAuthorLocation(author,location){
+  author=(author||'').trim();location=(location||'').trim();
+  if(!author||!location)return;
+  const map=loadAuthorLocations();
+  const key=author.toLowerCase();
+  if(map[key]!==location){
+    map[key]=location;
+    try{ localStorage.setItem(AUTHOR_LOCATIONS_KEY,JSON.stringify(map)); }catch(e){}
+  }
+}
+function harvestAuthorLocations(entries){
+  const map=loadAuthorLocations();
+  let changed=false;
+  (entries||[]).forEach(e=>{
+    if(e.kind&&e.kind!=='poem')return;
+    const author=(e.author||'').trim(),loc=(e.location||'').trim();
+    if(!author||!loc)return;
+    const key=author.toLowerCase();
+    if(!map[key]){map[key]=loc;changed=true;}
+  });
+  if(changed){
+    try{ localStorage.setItem(AUTHOR_LOCATIONS_KEY,JSON.stringify(map)); }catch(e){}
+  }
+}
+function onAuthorFieldChange(){
+  const nameEl=$('mAuthor'),locEl=$('mLocation');
+  if(!nameEl||!locEl)return;
+  const name=nameEl.value.trim();
+  if(!name)return;
+  const map=loadAuthorLocations();
+  const known=map[name.toLowerCase()];
+  if(known&&!locEl.value.trim())locEl.value=known;
+}
+
 // ── Remembered authors/usernames ─────────────────────────────────────
 // Every author name and Neopoet username you've typed in before is saved
 // here (in this browser only) and offered as you type a new one.
@@ -1686,10 +1733,12 @@ function addFromBacklog(i){
     lines:p.lines.slice()});
   rememberAuthor(p.author,p.username);
   rememberLocation(p.location);
+  rememberAuthorLocation(p.author,p.location);
   renderPreview();
 }
 harvestAuthors(BACKLOG_POEMS);
 harvestLocations(BACKLOG_POEMS);
+harvestAuthorLocations(BACKLOG_POEMS);
 renderBacklog();
 
 buildAuthorLists();
