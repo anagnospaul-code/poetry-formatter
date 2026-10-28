@@ -247,6 +247,17 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
       <h2>3 · Check against KDP</h2>
       <ul class="checks" id="checks"></ul>
       <div class="hint" id="lengthWarnings" style="display:none;color:var(--warn)"></div>
+
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line,rgba(127,127,127,.25))">
+        <h3 style="margin:0 0 8px;font-size:.95rem">Print cost &amp; royalty (US, KDP paperback)</h3>
+        <div class="fld">
+          <label>Your list price ($)</label>
+          <input type="number" id="pcPrice" min="0" step="0.01" placeholder="e.g. 14.99" oninput="renderPrintCost()">
+        </div>
+        <ul class="checks" id="printCostChecks"></ul>
+        <div class="hint">Estimated from Amazon's published black-ink, white/cream-paper formula for the US store — the real number can differ slightly by paper type or marketplace, so confirm the exact figure in KDP's own pricing calculator before you set a price.</div>
+      </div>
+
       <div class="btns" style="margin-top:13px">
         <button id="dl" onclick="buildPDF()">Download the interior PDF</button>
         <button class="ghost" id="dlEpub" onclick="buildEPUB()">Download the EPUB (for Kindle ebook)</button>
@@ -1221,6 +1232,42 @@ function renderChecks(b){
       warnEl.style.display='none';warnEl.innerHTML='';
     }
   }
+  renderPrintCost(b);
+}
+// KDP's published black-ink / white-or-cream-paper formula for the US
+// store. "Large" trim is anything wider than 6.12" or taller than 9" —
+// trim size is the only thing that changes which band applies; bleed and
+// cover finish don't affect printing cost.
+function kdpPrintCost(tw,th,pages){
+  const p=Math.max(KDP_MIN_PAGES,pages);
+  const large=tw>6.12+1e-9||th>9+1e-9;
+  if(large)return p<=110?2.84:1.00+0.017*p;
+  return p<=110?2.30:1.00+0.012*p;
+}
+function renderPrintCost(b){
+  const host=$('printCostChecks');
+  if(!host)return;
+  const rows=[];
+  const add=(k,v,cls)=>rows.push(`<li><span class="k">${k}</span><span class="v ${cls||''}">${v}</span></li>`);
+  const printCost=kdpPrintCost(b.tw,b.th,b.pages.length);
+  add('Estimated print cost',`$${printCost.toFixed(2)}`,'ok');
+  const priceEl=$('pcPrice');
+  const price=priceEl?parseFloat(priceEl.value):NaN;
+  if(!isNaN(price)&&price>0){
+    const rate=price>=9.99?.60:.50;
+    const royalty=rate*price-printCost;
+    add('Royalty rate at this price',`${Math.round(rate*100)}%`+(price<=9.98?' (list price ≤ $9.98)':' (list price ≥ $9.99)'),'ok');
+    add('Royalty per copy (Amazon sales)',`$${royalty.toFixed(2)}`,royalty>=0?'ok':'bad');
+    const edRoyalty=.40*price-printCost;
+    add('Royalty per copy (Expanded Distribution, 40%)',`$${edRoyalty.toFixed(2)}`,edRoyalty>=0?'ok':'bad');
+    if(royalty<0){
+      const minPrice=printCost/rate;
+      add('Minimum list price to break even',`$${minPrice.toFixed(2)}`,'warn');
+    }
+  }else{
+    add('Royalty','enter a list price above to estimate','warn');
+  }
+  host.innerHTML=rows.join('');
 }
 function longestLineInches(b){
   const cv=document.createElement('canvas');const c=cv.getContext('2d');
@@ -1997,7 +2044,7 @@ buildAuthorLists();
 // document) is kept in this browser's local storage, so closing the tab,
 // reopening the app, or an update to the app itself doesn't lose your
 // work. It never leaves your device.
-const SAVE_FIELDS=['src','trim','fsize','face','bTitle','bAuthor','bYear','optToc','optRight','optNums','ornament','bISBN','bDedication','optHeaders','bookFilter'];
+const SAVE_FIELDS=['src','trim','fsize','face','bTitle','bAuthor','bYear','optToc','optRight','optNums','ornament','bISBN','bDedication','optHeaders','bookFilter','pcPrice'];
 const STORAGE_KEY='poetryFormatterState_v1';
 function saveState(){
   try{
