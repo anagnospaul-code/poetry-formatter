@@ -700,6 +700,14 @@ function layout(){
 // "brackets" sits beside the title itself, not in a slot below it, so it
 // needs no extra vertical room the way the other ornaments do.
 function ornamentGap(fs,ornament){ return (ornament==='none'||ornament==='brackets')?0:fs*0.85/72; }
+// Dedicated row height (inches) for a non-brackets ornament mark sitting
+// between a poem's title and its byline. The marks are all fixed, small
+// physical sizes (under .08in half-height) regardless of font size, so a
+// flat row — generous clearance above and below the mark — works at any
+// font size, unlike ornamentGap() above (which scales with fs and is
+// still used for the section-title layout, where there's no byline text
+// immediately underneath to collide with).
+const ORNAMENT_ROW_H=.42;
 // Measured directly from the real Fiverr-delivered PDF's vector paths
 // (page 30, "Supernova"): the two steps are close to equal height, the
 // first tread is about twice the second, and the rule is inset from the
@@ -1383,48 +1391,45 @@ function drawPage(cv,page,idx,b){
   else if(page.kind==='poem'){
     let y=I(TOPM)+lead;
     if(page.showTitle){
-      if(page.ornament==='brackets'){
-        // Centered, all-caps title block with name/location each on their
-        // own line — the anthology-style treatment from the sample.
-        c.textAlign='center';
-        c.font=`${I(b.fs*1.32/72)}px ${fam}`;
-        const upTitle=(page.title||'').toUpperCase();
-        c.fillText(upTitle,left+colW/2,y);
+      // Centered, all-caps title block with name/location each on their
+      // own line — the anthology-style layout. This stays the same no
+      // matter which ornament is chosen; only the little mark under the
+      // title changes, so switching ornaments never reflows the page.
+      c.textAlign='center';
+      c.font=`${I(b.fs*1.32/72)}px ${fam}`;
+      const upTitle=(page.title||'').toUpperCase();
+      c.fillText(upTitle,left+colW/2,y);
+      // "sectionbox" is the real book's full-frame divider treatment — it
+      // only makes sense around a section title, never repeated under
+      // every single poem, so poem titles fall back to a plain rule-dot.
+      const orn=page.ornament==='sectionbox'?'rule-dot':page.ornament;
+      let titleGap=b.fs*1.9/72;
+      if(orn==='brackets'){
         drawBracketsCanvas(c,left,colW,y,I);
-        y+=I(b.fs*1.9/72);
-        if(page.author||page.username){
-          c.font=`${I(b.fs*.86/72)}px ${fam}`;c.fillStyle='#555';
-          c.fillText(anthologyByline(page.author,page.username),left+colW/2,y);
-          y+=I(b.fs*1.15/72);
-        }
-        if(page.location){
-          c.font=`${I(b.fs*.86/72)}px ${fam}`;c.fillStyle='#555';
-          c.fillText(page.location,left+colW/2,y);
-          y+=I(b.fs*1.15/72);
-        }
-        c.fillStyle='#111';c.textAlign='left';
-        y+=I(b.fs*.5/72);
-      }else{
-        c.font=`${I(b.fs*1.32/72)}px ${fam}`;
-        c.fillText(page.title,left,y);
-        y+=I(b.fs*1.9/72);
-        if(page.author||page.username||page.location){
-          c.font=`${I(b.fs*.92/72)}px ${fam}`;c.fillStyle='#555';
-          c.fillText(bylineText(page.author,page.username,page.location),left,y);c.fillStyle='#111';
-          y+=I(b.fs*1.3/72);
-        }
-        if(page.ornament&&page.ornament!=='none'){
-          // "sectionbox" is the real book's full-frame divider treatment —
-          // it only makes sense around a section title, never repeated
-          // under every single poem, so poem titles fall back to a plain
-          // rule-and-dot in that case.
-          const orn=page.ornament==='sectionbox'?'rule-dot':page.ornament;
-          const g=I(ornamentGap(b.fs,orn));
-          drawOrnamentCanvas(c,left+colW/2,y+g/2,orn,I);
-          y+=g;
-        }
-        y+=I(b.fs*.5/72);
+      }else if(orn&&orn!=='none'){
+        // Brackets fit snugly within the standard title-to-byline gap, but
+        // the other ornament marks need their own dedicated row so they
+        // don't collide with the byline below. The marks themselves are
+        // all fixed, small physical sizes (well under .08in half-height,
+        // regardless of font size), so a flat row with generous clearance
+        // on both sides works at any font size.
+        const rowH=ORNAMENT_ROW_H;
+        drawOrnamentCanvas(c,left+colW/2,y+I(titleGap)+I(rowH)/2,orn,I);
+        titleGap+=rowH;
       }
+      y+=I(titleGap);
+      if(page.author||page.username){
+        c.font=`${I(b.fs*.86/72)}px ${fam}`;c.fillStyle='#555';
+        c.fillText(anthologyByline(page.author,page.username),left+colW/2,y);
+        y+=I(b.fs*1.15/72);
+      }
+      if(page.location){
+        c.font=`${I(b.fs*.86/72)}px ${fam}`;c.fillStyle='#555';
+        c.fillText(page.location,left+colW/2,y);
+        y+=I(b.fs*1.15/72);
+      }
+      c.fillStyle='#111';c.textAlign='left';
+      y+=I(b.fs*.5/72);
     }
     c.font=`${I(b.fs/72)}px ${fam}`;
     page.lines.forEach(ln=>{
@@ -1436,27 +1441,20 @@ function drawPage(cv,page,idx,b){
     });
   }
   if(b.headers&&page.kind==='poem'){
+    // The real anthology's running header is centered and always shows
+    // the book title, on every poem page (title page or continuation
+    // alike) — confirmed across many pages of the real Fiverr-delivered
+    // PDF, never alternating to the poem's own title. This no longer
+    // depends on the ornament choice, so it stays put when you switch.
     c.font=`italic ${I(b.fs*.72/72)}px ${fam}`;c.fillStyle='#888';
-    if(b.ornament==='brackets'){
-      // The real anthology's running header is centered and always shows
-      // the book title, on every poem page (title page or continuation
-      // alike) — confirmed across many pages of the real Fiverr-delivered
-      // PDF, never alternating to the poem's own title.
-      c.textAlign='center';
-      c.fillText(b.title.slice(0,70),cv.width/2,I(TOPM*.52));
-    }else{
-      const htext=right?(page.title||'').replace(' (cont.)',''):b.title;
-      c.textAlign=right?'right':'left';
-      c.fillText(htext.slice(0,60),right?left+colW:left,I(TOPM*.52));
-    }
+    c.textAlign='center';
+    c.fillText((b.title||'').slice(0,70),cv.width/2,I(TOPM*.52));
     c.textAlign='left';c.fillStyle='#111';
   }
   if(b.nums&&!['half','title','copyright','dedication','blank'].includes(page.kind)){
-    if(b.ornament==='brackets'){
-      c.strokeStyle='#999';c.lineWidth=I(.01);
-      c.beginPath();c.moveTo(cv.width/2-I(.18),cv.height-I(BOTM*.5)-I(.12));
-      c.lineTo(cv.width/2+I(.18),cv.height-I(BOTM*.5)-I(.12));c.stroke();
-    }
+    c.strokeStyle='#999';c.lineWidth=I(.01);
+    c.beginPath();c.moveTo(cv.width/2-I(.18),cv.height-I(BOTM*.5)-I(.12));
+    c.lineTo(cv.width/2+I(.18),cv.height-I(BOTM*.5)-I(.12));c.stroke();
     c.font=`${I(b.fs*.82/72)}px ${fam}`;c.fillStyle='#555';c.textAlign='center';
     c.fillText(String(idx+1),cv.width/2,cv.height-I(BOTM*.5));
     c.textAlign='left';
@@ -1825,45 +1823,40 @@ async function buildPDF(){
     else if(page.kind==='poem'){
       let y=TOPM+lead;
       if(page.showTitle){
-        if(page.ornament==='brackets'){
-          doc.setFont(fontName,'bold');doc.setFontSize(b.fs*1.32);
-          const upTitle=(page.title||'').toUpperCase();
-          doc.text(upTitle,left+colW/2,y,{align:'center',maxWidth:colW});
+        // Centered, all-caps title block with name/location each on their
+        // own line — the anthology-style layout, kept the same no matter
+        // which ornament is chosen; only the mark under the title changes.
+        doc.setFont(fontName,'bold');doc.setFontSize(b.fs*1.32);
+        const upTitle=(page.title||'').toUpperCase();
+        doc.text(upTitle,left+colW/2,y,{align:'center',maxWidth:colW});
+        const orn=page.ornament==='sectionbox'?'rule-dot':page.ornament;
+        let titleGap=b.fs*1.9/72;
+        if(orn==='brackets'){
           drawBracketsPDF(doc,left,colW,y);
-          y+=b.fs*1.9/72;
-          if(page.author||page.username){
-            doc.setFont(fontName,'normal');doc.setFontSize(b.fs*.86);
-            doc.setTextColor(85,85,85);
-            doc.text(anthologyByline(page.author,page.username),left+colW/2,y,{align:'center',maxWidth:colW});
-            y+=b.fs*1.15/72;
-          }
-          if(page.location){
-            doc.setFont(fontName,'normal');doc.setFontSize(b.fs*.86);
-            doc.setTextColor(85,85,85);
-            doc.text(page.location,left+colW/2,y,{align:'center',maxWidth:colW});
-            y+=b.fs*1.15/72;
-          }
-          doc.setTextColor(17,17,17);
-          y+=b.fs*.5/72;
-        }else{
-          doc.setFont(fontName,'bold');doc.setFontSize(b.fs*1.32);
-          doc.text(page.title,left,y,{maxWidth:colW});
-          y+=b.fs*1.9/72;
-          if(page.author||page.username||page.location){
-            doc.setFont(fontName,'normal');doc.setFontSize(b.fs*.92);
-            doc.setTextColor(85,85,85);
-            doc.text(bylineText(page.author,page.username,page.location),left,y,{maxWidth:colW});
-            doc.setTextColor(17,17,17);
-            y+=b.fs*1.3/72;
-          }
-          if(page.ornament&&page.ornament!=='none'){
-            const orn=page.ornament==='sectionbox'?'rule-dot':page.ornament;
-            const g=ornamentGap(b.fs,orn);
-            drawOrnamentPDF(doc,left+colW/2,y+g/2,orn);
-            y+=g;
-          }
-          y+=b.fs*.5/72;
+        }else if(orn&&orn!=='none'){
+          // Brackets fit snugly within the standard title-to-byline gap,
+          // but the other ornament marks need their own dedicated row so
+          // they don't collide with the byline below — see the matching
+          // canvas branch for why a flat row works at any font size.
+          const rowH=ORNAMENT_ROW_H;
+          drawOrnamentPDF(doc,left+colW/2,y+titleGap+rowH/2,orn);
+          titleGap+=rowH;
         }
+        y+=titleGap;
+        if(page.author||page.username){
+          doc.setFont(fontName,'normal');doc.setFontSize(b.fs*.86);
+          doc.setTextColor(85,85,85);
+          doc.text(anthologyByline(page.author,page.username),left+colW/2,y,{align:'center',maxWidth:colW});
+          y+=b.fs*1.15/72;
+        }
+        if(page.location){
+          doc.setFont(fontName,'normal');doc.setFontSize(b.fs*.86);
+          doc.setTextColor(85,85,85);
+          doc.text(page.location,left+colW/2,y,{align:'center',maxWidth:colW});
+          y+=b.fs*1.15/72;
+        }
+        doc.setTextColor(17,17,17);
+        y+=b.fs*.5/72;
       }
       doc.setFont(fontName,'normal');doc.setFontSize(b.fs);
       page.lines.forEach(ln=>{
@@ -1875,22 +1868,17 @@ async function buildPDF(){
       });
     }
     if(b.headers&&page.kind==='poem'){
+      // Centered, book-title-only running header on every poem page —
+      // matches the real anthology regardless of which ornament is picked.
       doc.setFont(fontName,'italic');doc.setFontSize(b.fs*.72);
       doc.setTextColor(136,136,136);
-      if(b.ornament==='brackets'){
-        doc.text(b.title,b.tw/2,TOPM*.52,{align:'center',maxWidth:colW});
-      }else{
-        const htext=right?(page.title||'').replace(' (cont.)',''):b.title;
-        doc.text(htext,right?left+colW:left,TOPM*.52,{align:right?'right':'left',maxWidth:colW});
-      }
+      doc.text(b.title||'',b.tw/2,TOPM*.52,{align:'center',maxWidth:colW});
       doc.setTextColor(17,17,17);
     }
     if(b.nums&&!['half','title','copyright','dedication','blank'].includes(page.kind)){
-      if(b.ornament==='brackets'){
-        doc.setDrawColor(150);doc.setLineWidth(.01);
-        doc.line(b.tw/2-.18,b.th-BOTM*.5-.1,b.tw/2+.18,b.th-BOTM*.5-.1);
-        doc.setDrawColor(0);
-      }
+      doc.setDrawColor(150);doc.setLineWidth(.01);
+      doc.line(b.tw/2-.18,b.th-BOTM*.5-.1,b.tw/2+.18,b.th-BOTM*.5-.1);
+      doc.setDrawColor(0);
       doc.setFont(fontName,'normal');doc.setFontSize(b.fs*.82);
       doc.setTextColor(85,85,85);
       doc.text(String(idx+1),b.tw/2,b.th-BOTM*.5,{align:'center'});
