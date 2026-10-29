@@ -1437,9 +1437,18 @@ function drawPage(cv,page,idx,b){
   }
   if(b.headers&&page.kind==='poem'){
     c.font=`italic ${I(b.fs*.72/72)}px ${fam}`;c.fillStyle='#888';
-    const htext=right?(page.title||'').replace(' (cont.)',''):b.title;
-    c.textAlign=right?'right':'left';
-    c.fillText(htext.slice(0,60),right?left+colW:left,I(TOPM*.52));
+    if(b.ornament==='brackets'){
+      // The real anthology's running header is centered and always shows
+      // the book title, on every poem page (title page or continuation
+      // alike) — confirmed across many pages of the real Fiverr-delivered
+      // PDF, never alternating to the poem's own title.
+      c.textAlign='center';
+      c.fillText(b.title.slice(0,70),cv.width/2,I(TOPM*.52));
+    }else{
+      const htext=right?(page.title||'').replace(' (cont.)',''):b.title;
+      c.textAlign=right?'right':'left';
+      c.fillText(htext.slice(0,60),right?left+colW:left,I(TOPM*.52));
+    }
     c.textAlign='left';c.fillStyle='#111';
   }
   if(b.nums&&!['half','title','copyright','dedication','blank'].includes(page.kind)){
@@ -1868,8 +1877,12 @@ async function buildPDF(){
     if(b.headers&&page.kind==='poem'){
       doc.setFont(fontName,'italic');doc.setFontSize(b.fs*.72);
       doc.setTextColor(136,136,136);
-      const htext=right?(page.title||'').replace(' (cont.)',''):b.title;
-      doc.text(htext,right?left+colW:left,TOPM*.52,{align:right?'right':'left',maxWidth:colW});
+      if(b.ornament==='brackets'){
+        doc.text(b.title,b.tw/2,TOPM*.52,{align:'center',maxWidth:colW});
+      }else{
+        const htext=right?(page.title||'').replace(' (cont.)',''):b.title;
+        doc.text(htext,right?left+colW:left,TOPM*.52,{align:right?'right':'left',maxWidth:colW});
+      }
       doc.setTextColor(17,17,17);
     }
     if(b.nums&&!['half','title','copyright','dedication','blank'].includes(page.kind)){
