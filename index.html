@@ -248,6 +248,9 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
           <option value="square">Square corner ⌐══⌐</option>
           <option value="diamond">Diamond corner ╲══╱</option>
           <option value="ticks">Tick corner ╽══╽</option>
+          <option value="chevron">Chevron corner ╲══╱</option>
+          <option value="wave">Wave corner ﹏══﹏</option>
+          <option value="pennant">Pennant corner ╲___══___╱</option>
           <option value="sectionbox">Section box ⌐══⌐ (section dividers only — traced from the real anthology)</option>
           <option value="none">None</option>
         </select>
@@ -1060,6 +1063,9 @@ const CORNER_CAPS={
   square:[[0,16/72],[-14/72,0]],
   diamond:[[-12/72,12/72]],
   ticks:[[0,8/72],[-5/72,0],[5/72,0],[0,8/72]],
+  chevron:[[-8/72,9/72],[8/72,9/72]],
+  wave:[[-5/72,6/72],[5/72,5/72],[-5/72,6/72]],
+  pennant:[[-18/72,9/72]],
 };
 function drawRuleCapsCanvas(c,left,colW,yBase,I,capDeltas){
   // left/colW/yBase arrive already pixel-scaled (the canvas caller's own
