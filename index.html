@@ -1559,9 +1559,12 @@ function renderFoundList(entries){
     if(!e.author&&!e.username)missing.push('author');
     if(!e.location)missing.push('location');
     if(missing.length)badges+=` <span class="v warn" style="font-size:.72rem;white-space:nowrap">missing ${missing.join('/')}</span>`;
+    const needsText=!e.lines||!e.lines.join('').trim();
+    if(needsText)badges+=` <span class="v warn" style="font-size:.72rem;white-space:nowrap">needs poem text</span>`;
+    const fillBtn=(inputMode==='one'&&needsText)?`<button class="frm" title="Fill in the poem text" onclick="editManualPoem(${i})">✎ Fill in text</button>`:'';
     return `<li style="${opacityStyle}"><span class="fnum">${n}.</span><span class="ftext">${escapeHtml(e.title)}`+
       ((e.author||e.username)?` <span class="fauthor">— ${escapeHtml(bylineText(e.author,e.username,e.location))}</span>`:'')+
-      `</span>${badges}${tagSel}${mv}${rm}</li>`;
+      `</span>${badges}${fillBtn}${tagSel}${mv}${rm}</li>`;
   }).join('');
 }
 // Cross-edition duplicate lookup: title+author (normalized) -> the
@@ -2518,6 +2521,55 @@ function prefillFromRelease(i){
   rememberAuthorUsername(r.author,r.username);
   $('mBody').focus();
 }
+
+// ── Auto-add newly-synced releases straight into the current book ──────
+// Once a day the scheduled sync adds freshly-signed releases to
+// RELEASE_FORMS and pushes the update. The next time this app is opened,
+// any release dated on/after AUTO_RELEASE_CUTOFF that isn't already in
+// the book gets added automatically as a stub poem (title/author/location
+// filled in, no text yet) — no "Prefill" click needed. Each one is only
+// ever auto-added once (tracked in AUTO_RELEASE_SEEN_KEY), so removing a
+// stub you don't want for this book doesn't bring it back on next load.
+// Releases from before the cutoff are untouched — they stay in the
+// Release Forms list below for manual Prefill, same as always, so the
+// long backlog of older signed poems doesn't flood the current book.
+const AUTO_RELEASE_CUTOFF='2026-11-06';
+const AUTO_RELEASE_SEEN_KEY='poetryFormatterAutoReleaseSeen_v1';
+function autoAddNewReleaseForms(){
+  let seen;
+  try{ seen=new Set(JSON.parse(localStorage.getItem(AUTO_RELEASE_SEEN_KEY)||'[]')); }
+  catch(e){ seen=new Set(); }
+  const inBookTitles=new Set(manualPoems.filter(p=>p.kind==='poem').map(p=>normKey(p.title)));
+  let added=0;
+  RELEASE_FORMS.forEach(r=>{
+    if(!r.title||!r.date_agreed||r.date_agreed<AUTO_RELEASE_CUTOFF)return;
+    const key=r.title+'||'+(r.author||r.username||'')+'||'+r.date_agreed;
+    if(seen.has(key))return;
+    seen.add(key);
+    if(inBookTitles.has(normKey(r.title)))return; // already added (manually or otherwise) — don't duplicate
+    manualPoems.push({kind:'poem',title:r.title,author:r.author||r.username,
+      username:r.username||'',location:r.location||'',lines:[]});
+    inBookTitles.add(normKey(r.title));
+    added++;
+  });
+  try{ localStorage.setItem(AUTO_RELEASE_SEEN_KEY,JSON.stringify([...seen])); }catch(e){}
+  return added;
+}
+function editManualPoem(i){
+  const p=manualPoems[i];
+  if(!p||p.kind!=='poem')return;
+  if(inputMode!=='one')setMode('one');
+  snapshotManualPoems();
+  manualPoems.splice(i,1);
+  $('mTitle').value=p.title||'';
+  $('mAuthor').value=p.author||'';
+  onAuthorFieldChange();
+  $('mUsername').value=p.username||'';
+  $('mLocation').value=p.location||'';
+  $('mBody').value=(p.lines||[]).join('\n');
+  renderPreview();
+  $('mBody').focus();
+}
 renderReleaseForms();
 
 buildAuthorLists();
@@ -2782,6 +2834,7 @@ $('smArt')&&$('smArt').addEventListener('change',e=>{
 fillTrims();
 fillIsbnSelect();
 loadState();
+autoAddNewReleaseForms();
 syncIsbnSelectFromValue();
 setMode(inputMode);
 SAVE_FIELDS.forEach(id=>{
