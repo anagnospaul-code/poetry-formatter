@@ -88,11 +88,11 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
 .status.good .dot{background:var(--ok)} .status.warn .dot{background:var(--warn)}
 .foundlist{list-style:none;margin:10px 0 0;padding:0;font-size:.85rem;max-height:220px;overflow-y:auto;
   border:1px solid var(--line);border-radius:7px}
-.foundlist li{padding:7px 10px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center}
+.foundlist li{padding:7px 10px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center}
 .foundlist li:last-child{border-bottom:0}
 .foundlist .fnum{color:var(--muted);flex:0 0 auto;width:1.6em;text-align:right}
 .foundlist .fauthor{color:var(--muted)}
-.foundlist .ftext{flex:1;min-width:0}
+.foundlist .ftext{flex:1 1 160px;min-width:160px}
 .foundlist .frm{flex:0 0 auto;background:none;border:0;color:var(--muted);cursor:pointer;
   font-size:1rem;line-height:1;padding:2px 6px;border-radius:5px}
 .foundlist .frm:hover{background:var(--line);color:var(--bad)}
