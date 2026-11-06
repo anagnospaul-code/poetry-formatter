@@ -2508,6 +2508,49 @@ function renderReleaseForms(){
       `<button class="frm" title="Prefill the poem fields" onclick="prefillFromRelease(${origIdx})">Prefill</button></li>`;
   }).join('')||`<li><span class="ftext" style="color:var(--muted)">No matches.</span></li>`;
 }
+// ── US release-form locations: just the state, spelled out ─────────────
+// Poets type the "City/State" field on Neopoet's form however they like
+// ("Lafayette/GA", "San Pedro Ca", "Pennsylvania", "GA"...), so a raw
+// release location like "Lafayette/GA, United States" would otherwise
+// print under a poem title exactly as typed. For a US entry, that's
+// reduced to just the full state name + "United States" — no city, no
+// abbreviation. Non-US locations are left exactly as submitted.
+const US_STATE_ABBR={AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',
+  CO:'Colorado',CT:'Connecticut',DE:'Delaware',FL:'Florida',GA:'Georgia',HI:'Hawaii',
+  ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',
+  ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',
+  MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',
+  NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',
+  OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',
+  TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',
+  WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming',DC:'District of Columbia'};
+const US_STATE_FULL_MAP={};
+Object.values(US_STATE_ABBR).forEach(name=>{US_STATE_FULL_MAP[name.toLowerCase()]=name;});
+function usLocationClean(location){
+  if(!location)return location;
+  const m=location.match(/^(.*?),?\s*(United States of America|United States|USA|U\.S\.A\.?|US)\s*$/i);
+  if(!m)return location; // not a US entry — leave exactly as submitted
+  const prefix=m[1].trim();
+  const tokens=prefix.split(/[\/,]/).map(t=>t.trim()).filter(Boolean);
+  for(const raw of tokens){
+    const words=raw.replace(/\./g,'').split(/\s+/).filter(Boolean);
+    if(!words.length)continue;
+    // most common pattern: "City ST" — a bare 2-letter code as the last word
+    const lastWord=words[words.length-1];
+    if(lastWord.length===2&&US_STATE_ABBR[lastWord.toUpperCase()])
+      return US_STATE_ABBR[lastWord.toUpperCase()]+', United States';
+    // a full state name, whether it's the whole token ("Pennsylvania") or
+    // trails a city with no separator ("Comanche Texas", "Saint Croix
+    // Falls Wisconsin") — check the last 1–3 words as a phrase
+    for(let n=Math.min(3,words.length);n>=1;n--){
+      const phrase=words.slice(words.length-n).join(' ').toLowerCase();
+      if(US_STATE_FULL_MAP[phrase])return US_STATE_FULL_MAP[phrase]+', United States';
+    }
+  }
+  // no state recognized — can't reduce to "just the state", so fall back
+  // to what was actually submitted rather than silently dropping it
+  return prefix?prefix+', United States':'United States';
+}
 function prefillFromRelease(i){
   const r=RELEASE_FORMS[i];
   if(!r)return;
@@ -2516,8 +2559,9 @@ function prefillFromRelease(i){
   $('mAuthor').value=r.author||r.username; // no full name on file: use the Neopoet username for both
   onAuthorFieldChange();
   if(r.username&&!$('mUsername').value.trim())$('mUsername').value=r.username;
-  if(r.location&&!$('mLocation').value.trim())$('mLocation').value=r.location;
-  rememberAuthorLocation(r.author,r.location);
+  const cleanLoc=usLocationClean(r.location);
+  if(cleanLoc&&!$('mLocation').value.trim())$('mLocation').value=cleanLoc;
+  rememberAuthorLocation(r.author,cleanLoc);
   rememberAuthorUsername(r.author,r.username);
   $('mBody').focus();
 }
@@ -2548,7 +2592,7 @@ function autoAddNewReleaseForms(){
     seen.add(key);
     if(inBookTitles.has(normKey(r.title)))return; // already added (manually or otherwise) — don't duplicate
     manualPoems.push({kind:'poem',title:r.title,author:r.author||r.username,
-      username:r.username||'',location:r.location||'',lines:[]});
+      username:r.username||'',location:usLocationClean(r.location)||'',lines:[]});
     inBookTitles.add(normKey(r.title));
     added++;
   });
