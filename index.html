@@ -1560,23 +1560,30 @@ function renderStatusDash(){
   const el=$('statusDash');
   if(!el)return;
   const poems=manualPoems.filter(p=>p.kind==='poem');
-  let missingInfo=0, needsText=0, complete=0;
+  let missingInfo=0, needsText=0, complete=0, awaitingReply=0;
   poems.forEach(p=>{
     const noInfo=(!p.author&&!p.username)||!p.location;
     const noText=!p.lines||!p.lines.join('').trim();
     if(noInfo)missingInfo++;
     if(noText)needsText++;
     if(!noInfo&&!noText)complete++;
+    if((noInfo||noText)&&p.messagedAt)awaitingReply++;
   });
   const inBookTitles=new Set(poems.map(p=>normKey(p.title)));
   const notYetAdded=(typeof RELEASE_FORMS!=='undefined'?RELEASE_FORMS:[])
     .filter(r=>r.title&&!inBookTitles.has(normKey(r.title))).length;
   if(!poems.length&&!notYetAdded){el.innerHTML='';return;}
+  const pct=poems.length?Math.round(complete/poems.length*100):0;
   const parts=[`<b>${complete}</b> complete`];
   if(missingInfo)parts.push(`<span style="color:var(--warn)"><b>${missingInfo}</b> missing info</span>`);
   if(needsText)parts.push(`<span style="color:var(--warn)"><b>${needsText}</b> need poem text</span>`);
+  if(awaitingReply)parts.push(`<span style="color:var(--muted)"><b>${awaitingReply}</b> awaiting reply</span>`);
   if(notYetAdded)parts.push(`<span style="color:var(--muted)"><b>${notYetAdded}</b> signed, not yet in book</span>`);
-  el.innerHTML=parts.join(' · ');
+  const barColor=pct>=100?'var(--ok)':'var(--accent)';
+  el.innerHTML=(poems.length?`<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">`+
+    `<div style="flex:1;height:7px;border-radius:4px;background:var(--line);overflow:hidden">`+
+    `<div style="height:100%;width:${pct}%;background:${barColor}"></div></div>`+
+    `<b>${pct}%</b></div>`:'')+parts.join(' · ');
 }
 function renderFoundList(entries){
   const list=$('foundList');
@@ -1620,6 +1627,12 @@ function renderFoundList(entries){
     if(missing.length)badges+=` <span class="v warn" style="font-size:.72rem;white-space:nowrap">missing ${missing.join('/')}</span>`;
     const needsText=!e.lines||!e.lines.join('').trim();
     if(needsText)badges+=` <span class="v warn" style="font-size:.72rem;white-space:nowrap">needs poem text</span>`;
+    if(e.messagedAt&&(missing.length||needsText)){
+      const days=Math.floor((Date.now()-new Date(e.messagedAt).getTime())/86400000);
+      const stale=days>=14;
+      badges+=` <span class="v${stale?' warn':''}" style="font-size:.72rem;white-space:nowrap">`+
+        `${stale?'⚠ ':'✉ '}messaged ${days<=0?'today':days+'d ago'}${stale?', no update':''}</span>`;
+    }
     const hasIssue=!!dupHit||missing.length>0||needsText;
     if(onlyIssues&&!hasIssue)return '';
     const fillBtn=(inputMode==='one'&&needsText)?`<button class="frm" title="Fill in the poem text" onclick="editManualPoem(${i})">✎ Fill in text</button>`:'';
@@ -2737,9 +2750,11 @@ function authorMessageScript(e){
   return body;
 }
 let authorMsgEntries=[];
+let authorMsgIndex=-1;
 function showAuthorMessage(i){
   const e=authorMsgEntries[i];
   if(!e)return;
+  authorMsgIndex=i;
   $('authorMsgLabel').textContent=`Message for ${e.title}${(e.author||e.username)?' — '+(e.author||e.username):''}:`;
   $('authorMsgText').value=authorMessageScript(e);
   $('authorMsgCopied').textContent='';
@@ -2755,6 +2770,14 @@ async function copyAuthorMessage(){
     ta.focus();ta.select();
     $('authorMsgCopied').textContent='Press Ctrl+C / Cmd+C to copy (selected for you).';
   }
+  markMessaged();
+}
+function markMessaged(){
+  const e=authorMsgEntries[authorMsgIndex];
+  if(!e)return;
+  e.messagedAt=new Date().toISOString();
+  logActivity(`Messaged ${e.author||e.username||'author'} about "${e.title}"`);
+  renderPreview();
 }
 function editManualPoem(i){
   const p=manualPoems[i];
