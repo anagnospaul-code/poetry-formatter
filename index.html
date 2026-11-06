@@ -202,6 +202,15 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
         <button class="ghost" id="undoBtn" onclick="undoLast()" disabled title="Nothing to undo">↶ Undo last change</button>
       </div>
       <ul class="foundlist" id="foundList" style="display:none"></ul>
+      <div id="authorMsgBox" style="display:none;margin-top:10px;border:1px solid var(--line);border-radius:7px;padding:10px">
+        <div class="hint" id="authorMsgLabel" style="margin:0 0 6px"></div>
+        <textarea id="authorMsgText" readonly style="min-height:120px;width:100%;box-sizing:border-box"></textarea>
+        <div class="btns" style="margin-top:6px">
+          <button class="ghost" onclick="copyAuthorMessage()">Copy message</button>
+          <button class="ghost" onclick="$('authorMsgBox').style.display='none'">Close</button>
+        </div>
+        <div class="hint" id="authorMsgCopied" style="margin:4px 0 0;color:var(--ok)"></div>
+      </div>
     </div>
 
     <div class="card">
@@ -1523,6 +1532,7 @@ function renderPreview(){
 }
 function renderFoundList(entries){
   const list=$('foundList');
+  authorMsgEntries=entries;
   if(!entries.length){list.style.display='none';list.innerHTML='';return;}
   list.style.display='block';
   const filterVal=inputMode==='one'&&$('bookFilter')?$('bookFilter').value:'';
@@ -1562,9 +1572,10 @@ function renderFoundList(entries){
     const needsText=!e.lines||!e.lines.join('').trim();
     if(needsText)badges+=` <span class="v warn" style="font-size:.72rem;white-space:nowrap">needs poem text</span>`;
     const fillBtn=(inputMode==='one'&&needsText)?`<button class="frm" title="Fill in the poem text" onclick="editManualPoem(${i})">✎ Fill in text</button>`:'';
+    const msgBtn=(inputMode==='one'&&(missing.length||needsText))?`<button class="frm" title="Draft a message to this author" onclick="showAuthorMessage(${i})">✉ Message author</button>`:'';
     return `<li style="${opacityStyle}"><span class="fnum">${n}.</span><span class="ftext">${escapeHtml(e.title)}`+
       ((e.author||e.username)?` <span class="fauthor">— ${escapeHtml(bylineText(e.author,e.username,e.location))}</span>`:'')+
-      `</span>${badges}${fillBtn}${tagSel}${mv}${rm}</li>`;
+      `</span>${badges}${fillBtn}${msgBtn}${tagSel}${mv}${rm}</li>`;
   }).join('');
 }
 // Cross-edition duplicate lookup: title+author (normalized) -> the
@@ -2598,6 +2609,45 @@ function autoAddNewReleaseForms(){
   });
   try{ localStorage.setItem(AUTO_RELEASE_SEEN_KEY,JSON.stringify([...seen])); }catch(e){}
   return added;
+}
+// ── Draft a message to an author when a release's info is missing or
+// looks wrong, so Paul can paste it into a Neopoet PM or email instead
+// of writing it from scratch each time.
+function authorMessageScript(e){
+  const who=e.author||e.username||'there';
+  const gaps=[];
+  if(!e.author&&!e.username)gaps.push('your name (or the Neopoet username you submitted under)');
+  if(!e.location)gaps.push('your city/state (or country, if outside the US)');
+  const needsText=!e.lines||!e.lines.join('').trim();
+  if(needsText)gaps.push('the text of the poem itself');
+  let body;
+  if(gaps.length){
+    const list=gaps.length===1?gaps[0]:gaps.slice(0,-1).join(', ')+' and '+gaps[gaps.length-1];
+    body=`Hi ${who},\n\nThanks for signing the release form for "${e.title}" — we're excited to include it in the upcoming Neopoet anthology! Before we send the book to print, could you confirm or send over ${list}?\n\nJust reply here whenever you get a chance.\n\nThanks so much,\nPaul`;
+  }else{
+    body=`Hi ${who},\n\nQuick check-in on "${e.title}" for the upcoming Neopoet anthology — we have your signed release and everything on file. Just confirming the byline looks right: ${bylineText(e.author,e.username,e.location)||'(no byline on file)'}. Let me know if anything needs a fix, otherwise we're all set!\n\nThanks,\nPaul`;
+  }
+  return body;
+}
+let authorMsgEntries=[];
+function showAuthorMessage(i){
+  const e=authorMsgEntries[i];
+  if(!e)return;
+  $('authorMsgLabel').textContent=`Message for ${e.title}${(e.author||e.username)?' — '+(e.author||e.username):''}:`;
+  $('authorMsgText').value=authorMessageScript(e);
+  $('authorMsgCopied').textContent='';
+  $('authorMsgBox').style.display='block';
+  $('authorMsgBox').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+async function copyAuthorMessage(){
+  const ta=$('authorMsgText');
+  try{
+    await navigator.clipboard.writeText(ta.value);
+    $('authorMsgCopied').textContent='Copied — paste it into an email or Neopoet message.';
+  }catch(e){
+    ta.focus();ta.select();
+    $('authorMsgCopied').textContent='Press Ctrl+C / Cmd+C to copy (selected for you).';
+  }
 }
 function editManualPoem(i){
   const p=manualPoems[i];
