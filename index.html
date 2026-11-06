@@ -124,12 +124,14 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
     <input type="file" id="projectImportFile" accept="application/json" style="display:none" onchange="handleProjectImportFile(this.files[0])">
   </div>
   <div class="hint" id="projectBackupNote"></div>
+  <div class="hint" id="backupReminder" style="display:none;color:var(--warn);font-weight:600;margin-top:6px"></div>
 </div>
 
 <div class="cols">
   <div>
     <div class="card">
       <h2>1 · The poems</h2>
+      <div id="statusDash" class="hint" style="margin:0 0 10px"></div>
       <div class="tabs">
         <button type="button" class="tab active" id="tabOne" onclick="setMode('one')">Add poems one at a time</button>
         <button type="button" class="tab" id="tabAll" onclick="setMode('all')">Paste a whole document</button>
@@ -201,7 +203,14 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
       <div class="btns" style="margin-top:6px">
         <button class="ghost" id="undoBtn" onclick="undoLast()" disabled title="Nothing to undo">↶ Undo last change</button>
       </div>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:8px">
+        <input type="checkbox" id="onlyIssues" onchange="renderPreview()" style="width:auto"> Show only entries needing attention
+      </label>
       <ul class="foundlist" id="foundList" style="display:none"></ul>
+      <details style="margin-top:10px">
+        <summary class="hint" style="cursor:pointer">Activity log</summary>
+        <div id="activityLogList" style="margin-top:6px"></div>
+      </details>
       <div id="authorMsgBox" style="display:none;margin-top:10px;border:1px solid var(--line);border-radius:7px;padding:10px">
         <div class="hint" id="authorMsgLabel" style="margin:0 0 6px"></div>
         <textarea id="authorMsgText" readonly style="min-height:120px;width:100%;box-sizing:border-box"></textarea>
@@ -316,6 +325,10 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
         <button class="ghost" onclick="turn(-2)">‹ Back</button>
         <span class="count" id="count"></span>
         <button class="ghost" onclick="turn(2)">Next ›</button>
+      </div>
+      <div class="nav" style="margin-top:6px">
+        <button class="ghost" onclick="turnToSection(-1)" title="Jump to the previous section divider">‹ Prev section</button>
+        <button class="ghost" onclick="turnToSection(1)" title="Jump to the next section divider">Next section ›</button>
       </div>
       <div class="pagelabel" id="plabel"></div>
     </div>
@@ -459,6 +472,7 @@ function addManualPoem(){
   rememberAuthorUsername(authorName,authorUser);
   $('mTitle').value='';$('mAuthor').value='';$('mUsername').value='';$('mLocation').value='';$('mBody').value='';
   $('mTitle').focus();
+  logActivity(`Added poem “${title}”${authorName?' — '+authorName:''}`);
   renderPreview();
 }
 function addManualSection(){
@@ -471,9 +485,16 @@ function addManualSection(){
   snapshotManualPoems();
   manualPoems.push({kind:'section',title});
   $('mSection').value='';
+  logActivity(`Added section “${title}”`);
   renderPreview();
 }
-function removeManualPoem(i){ snapshotManualPoems(); manualPoems.splice(i,1); renderPreview(); }
+function removeManualPoem(i){
+  const e=manualPoems[i];
+  snapshotManualPoems();
+  manualPoems.splice(i,1);
+  if(e)logActivity(`Removed ${e.kind==='section'?'section':'poem'} “${e.title}”`);
+  renderPreview();
+}
 function moveManualPoem(i,dir){
   const j=i+dir;
   if(j<0||j>=manualPoems.length)return;
@@ -1526,9 +1547,36 @@ function renderPreview(){
   $('plabel').textContent=`${b.tw}″ × ${b.th}″ · gutter ${b.gutter}″ · outside ${OUTER}″`;
   renderChecks(b);
   renderFoundList(inputMode==='one'?manualPoems:b.poems);
+  renderStatusDash();
   fillSocialPoemSelect(b.poems);
   if(typeof renderReleaseForms==='function')renderReleaseForms();
   saveState();
+}
+// ── A quick glance at where the book stands: how many poems are signed
+// and complete, how many are missing author/location info, how many are
+// auto-added stubs still waiting on poem text, and how many signed
+// releases haven't made it into the book at all yet.
+function renderStatusDash(){
+  const el=$('statusDash');
+  if(!el)return;
+  const poems=manualPoems.filter(p=>p.kind==='poem');
+  let missingInfo=0, needsText=0, complete=0;
+  poems.forEach(p=>{
+    const noInfo=(!p.author&&!p.username)||!p.location;
+    const noText=!p.lines||!p.lines.join('').trim();
+    if(noInfo)missingInfo++;
+    if(noText)needsText++;
+    if(!noInfo&&!noText)complete++;
+  });
+  const inBookTitles=new Set(poems.map(p=>normKey(p.title)));
+  const notYetAdded=(typeof RELEASE_FORMS!=='undefined'?RELEASE_FORMS:[])
+    .filter(r=>r.title&&!inBookTitles.has(normKey(r.title))).length;
+  if(!poems.length&&!notYetAdded){el.innerHTML='';return;}
+  const parts=[`<b>${complete}</b> complete`];
+  if(missingInfo)parts.push(`<span style="color:var(--warn)"><b>${missingInfo}</b> missing info</span>`);
+  if(needsText)parts.push(`<span style="color:var(--warn)"><b>${needsText}</b> need poem text</span>`);
+  if(notYetAdded)parts.push(`<span style="color:var(--muted)"><b>${notYetAdded}</b> signed, not yet in book</span>`);
+  el.innerHTML=parts.join(' · ');
 }
 function renderFoundList(entries){
   const list=$('foundList');
@@ -1558,6 +1606,7 @@ function renderFoundList(entries){
         `</select>`;
     }
     const opacityStyle=dimmed?'opacity:.45;':'';
+    const onlyIssues=inputMode==='one'&&$('onlyIssues')&&$('onlyIssues').checked;
     if(e.kind==='section')
       return `<li style="${opacityStyle}font-weight:600;background:var(--accent-soft)">`+
         `<span class="ftext">§ ${escapeHtml(e.title)}</span>${mv}${rm}</li>`;
@@ -1571,6 +1620,8 @@ function renderFoundList(entries){
     if(missing.length)badges+=` <span class="v warn" style="font-size:.72rem;white-space:nowrap">missing ${missing.join('/')}</span>`;
     const needsText=!e.lines||!e.lines.join('').trim();
     if(needsText)badges+=` <span class="v warn" style="font-size:.72rem;white-space:nowrap">needs poem text</span>`;
+    const hasIssue=!!dupHit||missing.length>0||needsText;
+    if(onlyIssues&&!hasIssue)return '';
     const fillBtn=(inputMode==='one'&&needsText)?`<button class="frm" title="Fill in the poem text" onclick="editManualPoem(${i})">✎ Fill in text</button>`:'';
     const msgBtn=(inputMode==='one'&&(missing.length||needsText))?`<button class="frm" title="Draft a message to this author" onclick="showAuthorMessage(${i})">✉ Message author</button>`:'';
     return `<li style="${opacityStyle}"><span class="fnum">${n}.</span><span class="ftext">${escapeHtml(e.title)}`+
@@ -1600,6 +1651,18 @@ function setBookTag(i,val){
   renderPreview();
 }
 function turn(d){spreadAt=Math.max(0,spreadAt+d);renderPreview();}
+function turnToSection(dir){
+  const b=lastCheckBuild;
+  if(!b)return;
+  const secIdxs=b.pages.map((p,i)=>p.kind==='sectiontitle'?i:-1).filter(i=>i>=0);
+  if(!secIdxs.length)return;
+  let target;
+  if(dir>0)target=secIdxs.find(i=>i>spreadAt+1);
+  else target=[...secIdxs].reverse().find(i=>i<spreadAt);
+  if(target===undefined)target=dir>0?secIdxs[0]:secIdxs[secIdxs.length-1];
+  spreadAt=target%2===0?target:target-1;
+  renderPreview();
+}
 
 let lastCheckBuild=null;
 function renderChecks(b){
@@ -1626,6 +1689,13 @@ function renderChecks(b){
   const longest=longestLineInches(b);
   add('Longest poem line',`${longest.toFixed(2)}″ in a ${(b.tw-b.gutter-OUTER).toFixed(2)}″ measure`,
       longest<=b.tw-b.gutter-OUTER?'ok':'warn');
+  add('ISBN',b.isbn?b.isbn:'none set — KDP will assign a free one',b.isbn?'ok':'warn');
+  const pcPaperEl=$('pcPaper');
+  const spineForChecks=kdpSpineWidth(pcPaperEl?pcPaperEl.value:'white',pages);
+  add('Estimated spine width',`${spineForChecks.toFixed(3)}″`,'ok');
+  if(pages<KDP_SPINE_MIN_PAGES_FOR_TEXT)
+    add('&nbsp;↳ Spine text','KDP requires 79+ pages to print spine text','warn');
+  add('Barcode area','KDP generates the back-cover barcode — leave the bottom-right ~2″×1.2″ of the back cover clear','ok');
   $('checks').innerHTML=rows.join('');
   const avgLines=poemsOnly.length?totalLines/poemsOnly.length:0;
   const shortMin=2, longMax=Math.max(60,Math.round(avgLines*3));
@@ -2608,7 +2678,44 @@ function autoAddNewReleaseForms(){
     added++;
   });
   try{ localStorage.setItem(AUTO_RELEASE_SEEN_KEY,JSON.stringify([...seen])); }catch(e){}
+  if(added>0)logActivity(`Auto-added ${added} new release${added===1?'':'s'} from email`);
   return added;
+}
+// ── Activity log: a short, capped history of changes to this book, so
+// Paul can spot-check that something looks off without having to remember
+// everything he's touched.
+const ACTIVITY_LOG_KEY='poetryFormatterActivityLog_v1';
+const ACTIVITY_LOG_MAX=40;
+function logActivity(msg){
+  let log;
+  try{ log=JSON.parse(localStorage.getItem(ACTIVITY_LOG_KEY)||'[]'); }
+  catch(e){ log=[]; }
+  log.unshift({t:new Date().toISOString(),msg});
+  if(log.length>ACTIVITY_LOG_MAX)log.length=ACTIVITY_LOG_MAX;
+  try{ localStorage.setItem(ACTIVITY_LOG_KEY,JSON.stringify(log)); }catch(e){}
+  renderActivityLog();
+}
+function fmtLogTime(iso){
+  const d=new Date(iso);
+  if(isNaN(d))return '';
+  const now=new Date();
+  const sameDay=d.toDateString()===now.toDateString();
+  const datePart=sameDay?'Today':d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+  const timePart=d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+  return `${datePart}, ${timePart}`;
+}
+function renderActivityLog(){
+  const el=$('activityLogList');
+  if(!el)return;
+  let log;
+  try{ log=JSON.parse(localStorage.getItem(ACTIVITY_LOG_KEY)||'[]'); }
+  catch(e){ log=[]; }
+  if(!log.length){
+    el.innerHTML='<div class="hint">Nothing logged yet — changes you make will show up here.</div>';
+    return;
+  }
+  el.innerHTML=log.map(e=>`<div class="hint" style="padding:3px 0;border-bottom:1px solid var(--line)">`+
+    `<span style="color:var(--muted)">${escapeHtml(fmtLogTime(e.t))}</span> — ${escapeHtml(e.msg)}</div>`).join('');
 }
 // ── Draft a message to an author when a release's info is missing or
 // looks wrong, so Paul can paste it into a Neopoet PM or email instead
@@ -2684,6 +2791,7 @@ function saveState(){
     });
     localStorage.setItem(STORAGE_KEY,JSON.stringify({inputMode,manualPoems,fields}));
   }catch(e){ console.warn('autosave unavailable:',e); }
+  if(typeof checkBackupReminder==='function')checkBackupReminder();
 }
 function loadState(){
   try{
@@ -2728,6 +2836,31 @@ async function exportProjectBackup(){
   await saveFile(`poetry-formatter-backup-${stamp}.json`,blob);
   const note=$('projectBackupNote');
   if(note)note.textContent='Backup downloaded — keep it somewhere safe (e.g. your Drive or email).';
+  try{ localStorage.setItem(LAST_BACKUP_KEY,new Date().toISOString()); }catch(e){}
+  checkBackupReminder();
+}
+const LAST_BACKUP_KEY='poetryFormatterLastBackup_v1';
+const BACKUP_REMINDER_DAYS=7;
+function checkBackupReminder(){
+  const el=$('backupReminder');
+  if(!el)return;
+  // No reminder until there's actually something worth losing.
+  if(!manualPoems.some(p=>p.kind==='poem'||p.kind==='section')){el.style.display='none';return;}
+  let last=null;
+  try{ last=localStorage.getItem(LAST_BACKUP_KEY); }catch(e){}
+  if(!last){
+    el.style.display='block';
+    el.textContent="You haven't backed up this project yet — click \"Export project backup\" above to keep a safe copy.";
+    return;
+  }
+  const days=(Date.now()-new Date(last).getTime())/86400000;
+  if(days>=BACKUP_REMINDER_DAYS){
+    el.style.display='block';
+    const n=Math.floor(days);
+    el.textContent=`It's been ${n} day${n===1?'':'s'} since your last backup — worth exporting a fresh one above.`;
+  }else{
+    el.style.display='none';
+  }
 }
 function handleProjectImportFile(file){
   const note=$('projectBackupNote');
@@ -2929,6 +3062,8 @@ fillTrims();
 fillIsbnSelect();
 loadState();
 autoAddNewReleaseForms();
+renderActivityLog();
+checkBackupReminder();
 syncIsbnSelectFromValue();
 setMode(inputMode);
 SAVE_FIELDS.forEach(id=>{
