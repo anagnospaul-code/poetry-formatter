@@ -85,7 +85,7 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
   margin-bottom:18px;font-size:.92rem;line-height:1.5;background:var(--accent-soft);border:1px solid var(--line)}
 .status b{font-weight:600}
 .status .dot{flex:0 0 auto;width:9px;height:9px;border-radius:50%;margin-top:5px;background:var(--accent)}
-.status.good .dot{background:var(--ok)} .status.warn .dot{background:var(--warn)}
+.status.good .dot{background:var(--ok)} .status.warn .dot{background:var(--warn)} .status.bad .dot{background:var(--bad)}
 .foundlist{list-style:none;margin:10px 0 0;padding:0;font-size:.85rem;max-height:220px;overflow-y:auto;
   border:1px solid var(--line);border-radius:7px}
 .foundlist li{padding:7px 10px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center}
@@ -132,6 +132,10 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
     <div class="card">
       <h2>1 · The poems</h2>
       <div id="statusDash" class="hint" style="margin:0 0 10px"></div>
+      <details id="sectionPageCountsBox" style="display:none;margin:0 0 10px">
+        <summary class="hint" style="cursor:pointer">Pages per section</summary>
+        <div id="sectionPageCounts" style="margin-top:6px"></div>
+      </details>
       <div class="tabs">
         <button type="button" class="tab active" id="tabOne" onclick="setMode('one')">Add poems one at a time</button>
         <button type="button" class="tab" id="tabAll" onclick="setMode('all')">Paste a whole document</button>
@@ -203,9 +207,16 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
       <div class="btns" style="margin-top:6px">
         <button class="ghost" id="undoBtn" onclick="undoLast()" disabled title="Nothing to undo">↶ Undo last change</button>
       </div>
+      <details style="margin-top:8px">
+        <summary class="hint" style="cursor:pointer">Earlier versions (this session)</summary>
+        <div id="undoHistoryList" style="margin-top:6px"></div>
+      </details>
       <input type="text" id="poemSearch" placeholder="Search by title, author, or poem text…" oninput="renderPreview()" style="margin-top:8px">
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:8px">
         <input type="checkbox" id="onlyIssues" onchange="renderPreview()" style="width:auto"> Show only entries needing attention
+      </label>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:6px">
+        <input type="checkbox" id="onlyRecent" onchange="renderPreview()" style="width:auto"> Show only recently added (last 10)
       </label>
       <ul class="foundlist" id="foundList" style="display:none"></ul>
       <details style="margin-top:10px">
@@ -290,6 +301,10 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
 
     <div class="card">
       <h2>3 · Check against KDP</h2>
+      <div class="btns" style="margin-bottom:10px">
+        <button class="ghost" onclick="checkPrintReady()">✓ Check if print-ready</button>
+      </div>
+      <div id="printReadyVerdict" style="display:none;margin-bottom:10px"></div>
       <ul class="checks" id="checks"></ul>
       <div class="hint" id="lengthWarnings" style="display:none;color:var(--warn)"></div>
       <div class="hint" id="metadataWarnings" style="display:none;color:var(--warn)"></div>
@@ -330,6 +345,9 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
       <div class="nav" style="margin-top:6px">
         <button class="ghost" onclick="turnToSection(-1)" title="Jump to the previous section divider">‹ Prev section</button>
         <button class="ghost" onclick="turnToSection(1)" title="Jump to the next section divider">Next section ›</button>
+      </div>
+      <div class="nav" style="margin-top:6px">
+        <button class="ghost" onclick="randomPage()" title="Jump to a random poem's page, for spot-checking formatting">🎲 Random page</button>
       </div>
       <div class="pagelabel" id="plabel"></div>
     </div>
@@ -411,15 +429,25 @@ const $=id=>document.getElementById(id);
 let BOOK=null, spreadAt=0;
 let inputMode='one', manualPoems=[];
 let undoStack=[];
-function snapshotManualPoems(){
-  undoStack.push(JSON.parse(JSON.stringify(manualPoems)));
-  if(undoStack.length>5)undoStack.shift();
+function snapshotManualPoems(label){
+  undoStack.push({state:JSON.parse(JSON.stringify(manualPoems)),label:label||'Change',t:new Date().toISOString()});
+  if(undoStack.length>8)undoStack.shift();
   updateUndoButton();
+  renderUndoHistory();
 }
 function undoLast(){
   if(!undoStack.length)return;
-  manualPoems=undoStack.pop();
+  manualPoems=undoStack.pop().state;
   updateUndoButton();
+  renderUndoHistory();
+  renderPreview();
+}
+function undoTo(idx){
+  if(idx<0||idx>=undoStack.length)return;
+  manualPoems=undoStack[idx].state;
+  undoStack.length=idx;
+  updateUndoButton();
+  renderUndoHistory();
   renderPreview();
 }
 function updateUndoButton(){
@@ -427,6 +455,17 @@ function updateUndoButton(){
   if(!btn)return;
   btn.disabled=!undoStack.length;
   btn.title=undoStack.length?`Undo the last ${undoStack.length>1?'of '+undoStack.length+' changes':'change'}`:'Nothing to undo';
+}
+function renderUndoHistory(){
+  const el=$('undoHistoryList');
+  if(!el)return;
+  if(!undoStack.length){el.innerHTML='<div class="hint">No earlier versions saved yet this session.</div>';return;}
+  el.innerHTML=undoStack.map((snap,idx)=>idx).reverse().map(idx=>{
+    const snap=undoStack[idx];
+    return `<div class="hint" style="padding:3px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px">`+
+      `<span><span style="color:var(--muted)">${escapeHtml(fmtLogTime(snap.t))}</span> — ${escapeHtml(snap.label)}</span>`+
+      `<button class="frm" onclick="undoTo(${idx})">↶ Step back to here</button></div>`;
+  }).join('');
 }
 
 // Hand a generated file to the viewer.
@@ -464,9 +503,9 @@ function addManualPoem(){
   while(lines.length&&!lines[lines.length-1].trim())lines.pop();
   let authorName=$('mAuthor').value.trim(), authorUser=$('mUsername').value.trim();
   if(!authorName&&authorUser)authorName=authorUser; // no full name given: use the Neopoet username for both
-  snapshotManualPoems();
+  snapshotManualPoems(`Before adding “${title}”`);
   manualPoems.push({kind:'poem',title,author:authorName,username:authorUser,
-    location:$('mLocation').value.trim(),lines});
+    location:$('mLocation').value.trim(),lines,addedAt:new Date().toISOString()});
   rememberAuthor(authorName,authorUser);
   rememberLocation($('mLocation').value);
   rememberAuthorLocation(authorName,$('mLocation').value);
@@ -483,15 +522,15 @@ function addManualSection(){
       `<div>Give the section a name first.</div></div>`;
     return;
   }
-  snapshotManualPoems();
-  manualPoems.push({kind:'section',title});
+  snapshotManualPoems(`Before adding section “${title}”`);
+  manualPoems.push({kind:'section',title,addedAt:new Date().toISOString()});
   $('mSection').value='';
   logActivity(`Added section “${title}”`);
   renderPreview();
 }
 function removeManualPoem(i){
   const e=manualPoems[i];
-  snapshotManualPoems();
+  snapshotManualPoems(`Before removing “${e?e.title:'entry'}”`);
   manualPoems.splice(i,1);
   if(e)logActivity(`Removed ${e.kind==='section'?'section':'poem'} “${e.title}”`);
   renderPreview();
@@ -499,7 +538,7 @@ function removeManualPoem(i){
 function moveManualPoem(i,dir){
   const j=i+dir;
   if(j<0||j>=manualPoems.length)return;
-  snapshotManualPoems();
+  snapshotManualPoems(`Before reordering “${manualPoems[i]?manualPoems[i].title:'entry'}”`);
   [manualPoems[i],manualPoems[j]]=[manualPoems[j],manualPoems[i]];
   renderPreview();
 }
@@ -1549,6 +1588,7 @@ function renderPreview(){
   renderChecks(b);
   renderFoundList(inputMode==='one'?manualPoems:b.poems);
   renderStatusDash();
+  renderSectionPageCounts();
   fillSocialPoemSelect(b.poems);
   if(typeof renderReleaseForms==='function')renderReleaseForms();
   saveState();
@@ -1586,6 +1626,24 @@ function renderStatusDash(){
     `<div style="height:100%;width:${pct}%;background:${barColor}"></div></div>`+
     `<b>${pct}%</b></div>`:'')+parts.join(' · ');
 }
+// ── A quick per-section page-count breakdown, so you can see if one part
+// of the book is running noticeably long or short before finalizing layout.
+function renderSectionPageCounts(){
+  const el=$('sectionPageCounts');
+  const box=$('sectionPageCountsBox');
+  if(!el||!box)return;
+  const b=lastCheckBuild;
+  const secs=b?b.pages.map((p,i)=>p.kind==='sectiontitle'?{i,title:p.title}:null).filter(Boolean):[];
+  if(!secs.length){box.style.display='none';el.innerHTML='';return;}
+  box.style.display='block';
+  el.innerHTML=secs.map((s,k)=>{
+    let end=k+1<secs.length?secs[k+1].i:b.pages.length;
+    if(k+1>=secs.length) // last section: don't count trailing padding blanks at the very end of the book
+      while(end>s.i+1&&b.pages[end-1].kind==='blank')end--;
+    const count=end-s.i;
+    return `<div style="padding:2px 0">§ ${escapeHtml(s.title)} — ${count} page${count===1?'':'s'}</div>`;
+  }).join('');
+}
 function renderFoundList(entries){
   const list=$('foundList');
   authorMsgEntries=entries;
@@ -1593,6 +1651,10 @@ function renderFoundList(entries){
   list.style.display='block';
   const filterVal=inputMode==='one'&&$('bookFilter')?$('bookFilter').value:'';
   const searchValOuter=($('poemSearch')?$('poemSearch').value:'').trim();
+  const onlyRecent=inputMode==='one'&&$('onlyRecent')&&$('onlyRecent').checked;
+  const recentSet=onlyRecent?new Set(
+    entries.filter(e=>e.addedAt).slice().sort((a,b)=>b.addedAt.localeCompare(a.addedAt)).slice(0,10)
+  ):null;
   let n=0;
   list.innerHTML=entries.map((e,i)=>{
     let mv='';
@@ -1620,6 +1682,7 @@ function renderFoundList(entries){
       const hay=[e.title,e.author,e.username,(e.lines||[]).join(' ')].join(' ').toLowerCase();
       if(!hay.includes(searchValOuter.toLowerCase()))return '';
     }
+    if(recentSet&&!recentSet.has(e))return '';
     if(e.kind==='section')
       return `<li style="${opacityStyle}font-weight:600;background:var(--accent-soft)">`+
         `<span class="ftext">§ ${escapeHtml(e.title)}</span>${mv}${rm}</li>`;
@@ -1684,6 +1747,19 @@ function turnToSection(dir){
   if(target===undefined)target=dir>0?secIdxs[0]:secIdxs[secIdxs.length-1];
   spreadAt=target%2===0?target:target-1;
   renderPreview();
+}
+// ── Jump to a random poem's page, for spot-checking formatting across
+// the book without reading through start to finish.
+function randomPage(){
+  const b=lastCheckBuild;
+  if(!b)return;
+  const poemIdxs=b.pages.map((p,i)=>p.kind==='poem'&&p.showTitle?i:-1).filter(i=>i>=0);
+  if(!poemIdxs.length)return;
+  const target=poemIdxs[Math.floor(Math.random()*poemIdxs.length)];
+  spreadAt=target%2===0?target:target-1;
+  renderPreview();
+  const spread=$('spread');
+  if(spread)spread.scrollIntoView({behavior:'smooth',block:'center'});
 }
 
 let lastCheckBuild=null;
@@ -2248,7 +2324,7 @@ async function addBulkPoemFiles(fileList){
   let authorName=($('bulkAuthor')?$('bulkAuthor').value:'').trim();
   const authorUser=($('bulkUsername')?$('bulkUsername').value:'').trim();
   if(!authorName&&authorUser)authorName=authorUser; // no full name given: use the username for both
-  snapshotManualPoems();
+  snapshotManualPoems(`Before bulk-adding ${files.length} file${files.length===1?'':'s'}`);
   let added=0;const failed=[];
   for(const f of files){
     let text;
@@ -2268,7 +2344,7 @@ async function addBulkPoemFiles(fileList){
       title=f.name.replace(/\.(txt|docx|pdf)$/i,'').replace(/[_-]+/g,' ').trim()||'Untitled';
       bodyLines=rawLines;
     }
-    manualPoems.push({kind:'poem',title,author:authorName,username:authorUser,location:'',lines:bodyLines});
+    manualPoems.push({kind:'poem',title,author:authorName,username:authorUser,location:'',lines:bodyLines,addedAt:new Date().toISOString()});
     added++;
   }
   if(authorName){
@@ -2552,9 +2628,9 @@ function addFromBacklog(i){
   if(!p)return;
   if(inputMode!=='one')setMode('one');
   const author=p.author||p.username; // no full name on file: use the Neopoet username for both
-  snapshotManualPoems();
+  snapshotManualPoems(`Before adding “${p.title}” from backlog`);
   manualPoems.push({kind:'poem',title:p.title,author,username:p.username,location:p.location,
-    lines:p.lines.slice()});
+    lines:p.lines.slice(),addedAt:new Date().toISOString()});
   rememberAuthor(author,p.username);
   rememberLocation(p.location);
   rememberAuthorLocation(p.author,p.location);
@@ -2695,7 +2771,7 @@ function autoAddNewReleaseForms(){
     seen.add(key);
     if(inBookTitles.has(normKey(r.title)))return; // already added (manually or otherwise) — don't duplicate
     manualPoems.push({kind:'poem',title:r.title,author:r.author||r.username,
-      username:r.username||'',location:usLocationClean(r.location)||'',lines:[]});
+      username:r.username||'',location:usLocationClean(r.location)||'',lines:[],addedAt:new Date().toISOString()});
     inBookTitles.add(normKey(r.title));
     added++;
   });
@@ -2758,6 +2834,36 @@ function authorMessageScript(e){
   }
   return body;
 }
+// ── A single pass/fail verdict for whether the book is print-ready,
+// instead of scanning the KDP checklist row by row yourself.
+function checkPrintReady(){
+  renderPreview();
+  const b=lastCheckBuild;
+  const el=$('printReadyVerdict');
+  if(!b||!el)return;
+  const checksEl=$('checks');
+  const bad=checksEl?checksEl.querySelectorAll('.v.bad').length:0;
+  const warn=checksEl?checksEl.querySelectorAll('.v.warn').length:0;
+  const poems=manualPoems.filter(p=>p.kind==='poem');
+  const missingInfo=poems.filter(p=>(!p.author&&!p.username)||!p.location).length;
+  const needsText=poems.filter(p=>!p.lines||!p.lines.join('').trim()).length;
+  const dupCount=poems.filter(p=>backlogDupMap().get(normKey(p.title)+'|'+normKey(p.author))).length;
+  el.style.display='block';
+  if(bad>0||needsText>0){
+    const reasons=[];
+    if(bad)reasons.push(`${bad} failing check${bad===1?'':'s'} above`);
+    if(needsText)reasons.push(`${needsText} poem${needsText===1?'':'s'} still missing text`);
+    el.innerHTML=`<div class="status bad"><span class="dot"></span><div><b>Not ready yet</b> — ${reasons.join(', ')}.</div></div>`;
+  }else if(warn>0||missingInfo>0||dupCount>0){
+    const notes=[];
+    if(warn)notes.push(`${warn} warning${warn===1?'':'s'} in the checklist above`);
+    if(missingInfo)notes.push(`${missingInfo} poem${missingInfo===1?'':'s'} missing author/location`);
+    if(dupCount)notes.push(`${dupCount} possible duplicate${dupCount===1?'':'s'}`);
+    el.innerHTML=`<div class="status warn"><span class="dot"></span><div><b>Ready, with a few things worth a look</b> — ${notes.join(', ')}.</div></div>`;
+  }else{
+    el.innerHTML=`<div class="status good"><span class="dot"></span><div><b>Looks print-ready</b> — margins, page count, and every poem all check out.</div></div>`;
+  }
+}
 // ── Jump straight to a poem's page in the preview, so you don't have to
 // scroll/flip through the whole book to find it after searching.
 function jumpToPoem(i){
@@ -2810,7 +2916,7 @@ function editManualPoem(i){
   const p=manualPoems[i];
   if(!p||p.kind!=='poem')return;
   if(inputMode!=='one')setMode('one');
-  snapshotManualPoems();
+  snapshotManualPoems(`Before editing “${p.title}”`);
   manualPoems.splice(i,1);
   $('mTitle').value=p.title||'';
   $('mAuthor').value=p.author||'';
@@ -3113,6 +3219,7 @@ fillIsbnSelect();
 loadState();
 autoAddNewReleaseForms();
 renderActivityLog();
+renderUndoHistory();
 checkBackupReminder();
 syncIsbnSelectFromValue();
 setMode(inputMode);
