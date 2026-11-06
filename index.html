@@ -203,6 +203,7 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
       <div class="btns" style="margin-top:6px">
         <button class="ghost" id="undoBtn" onclick="undoLast()" disabled title="Nothing to undo">↶ Undo last change</button>
       </div>
+      <input type="text" id="poemSearch" placeholder="Search by title, author, or poem text…" oninput="renderPreview()" style="margin-top:8px">
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:8px">
         <input type="checkbox" id="onlyIssues" onchange="renderPreview()" style="width:auto"> Show only entries needing attention
       </label>
@@ -1591,6 +1592,7 @@ function renderFoundList(entries){
   if(!entries.length){list.style.display='none';list.innerHTML='';return;}
   list.style.display='block';
   const filterVal=inputMode==='one'&&$('bookFilter')?$('bookFilter').value:'';
+  const searchValOuter=($('poemSearch')?$('poemSearch').value:'').trim();
   let n=0;
   list.innerHTML=entries.map((e,i)=>{
     let mv='';
@@ -1614,6 +1616,10 @@ function renderFoundList(entries){
     }
     const opacityStyle=dimmed?'opacity:.45;':'';
     const onlyIssues=inputMode==='one'&&$('onlyIssues')&&$('onlyIssues').checked;
+    if(searchValOuter){
+      const hay=[e.title,e.author,e.username,(e.lines||[]).join(' ')].join(' ').toLowerCase();
+      if(!hay.includes(searchValOuter.toLowerCase()))return '';
+    }
     if(e.kind==='section')
       return `<li style="${opacityStyle}font-weight:600;background:var(--accent-soft)">`+
         `<span class="ftext">§ ${escapeHtml(e.title)}</span>${mv}${rm}</li>`;
@@ -1637,10 +1643,13 @@ function renderFoundList(entries){
     if(onlyIssues&&!hasIssue)return '';
     const fillBtn=(inputMode==='one'&&needsText)?`<button class="frm" title="Fill in the poem text" onclick="editManualPoem(${i})">✎ Fill in text</button>`:'';
     const msgBtn=(inputMode==='one'&&(missing.length||needsText))?`<button class="frm" title="Draft a message to this author" onclick="showAuthorMessage(${i})">✉ Message author</button>`:'';
+    const jumpBtn=(inputMode==='one')?`<button class="frm" title="Jump to this poem's page in the preview" onclick="jumpToPoem(${i})">→ Go to page</button>`:'';
     return `<li style="${opacityStyle}"><span class="fnum">${n}.</span><span class="ftext">${escapeHtml(e.title)}`+
       ((e.author||e.username)?` <span class="fauthor">— ${escapeHtml(bylineText(e.author,e.username,e.location))}</span>`:'')+
-      `</span>${badges}${fillBtn}${msgBtn}${tagSel}${mv}${rm}</li>`;
+      `</span>${badges}${fillBtn}${msgBtn}${jumpBtn}${tagSel}${mv}${rm}</li>`;
   }).join('');
+  if(!list.innerHTML.trim())
+    list.innerHTML=`<li style="opacity:.6">No entries match${searchValOuter?' "'+escapeHtml(searchValOuter)+'"':' the current filter'}.</li>`;
 }
 // Cross-edition duplicate lookup: title+author (normalized) -> the
 // earlier edition(s) it already appeared in, built once from the merged
@@ -2748,6 +2757,24 @@ function authorMessageScript(e){
     body=`Hi ${who},\n\nQuick check-in on "${e.title}" for the upcoming Neopoet anthology — we have your signed release and everything on file. Just confirming the byline looks right: ${bylineText(e.author,e.username,e.location)||'(no byline on file)'}. Let me know if anything needs a fix, otherwise we're all set!\n\nThanks,\nPaul`;
   }
   return body;
+}
+// ── Jump straight to a poem's page in the preview, so you don't have to
+// scroll/flip through the whole book to find it after searching.
+function jumpToPoem(i){
+  const e=authorMsgEntries[i];
+  if(!e||e.kind!=='poem')return;
+  const b=lastCheckBuild;
+  if(!b)return;
+  const idx=b.pages.findIndex(pg=>pg.kind==='poem'&&pg.showTitle&&pg.title===e.title);
+  if(idx<0){
+    $('statusBox').innerHTML=`<div class="status warn"><span class="dot"></span>`+
+      `<div>Can't find that page in the preview — it may be filtered out by a book tag.</div></div>`;
+    return;
+  }
+  spreadAt=idx%2===0?idx:idx-1;
+  renderPreview();
+  const spread=$('spread');
+  if(spread)spread.scrollIntoView({behavior:'smooth',block:'center'});
 }
 let authorMsgEntries=[];
 let authorMsgIndex=-1;
