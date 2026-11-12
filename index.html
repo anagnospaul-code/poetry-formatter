@@ -436,7 +436,14 @@ const KDP_MIN_PAGES=24, KDP_MAX_PAGES=828;
 const OUTER=.6, TOPM=.75, BOTM=.7;
 
 const $=id=>document.getElementById(id);
-let BOOK=null, spreadAt=0;
+// spreadAt is the 0-indexed page shown in the LEFT slot of a two-page
+// spread, or the sentinel -1 for the book's opening page (page 1), which
+// has no left-hand partner to show yet — same as a real bound book, where
+// you first see page 1 alone on the right before you've turned anything.
+// A real spread always pairs an even printed page on the left with the
+// odd page right after it on the right (2&3, 4&5, 6&7, ...), so spreadAt
+// itself is always either -1 or an odd 0-indexed value.
+let BOOK=null, spreadAt=-1;
 let inputMode='one', manualPoems=[];
 let undoStack=[];
 function snapshotManualPoems(label){
@@ -1616,18 +1623,32 @@ function renderPreview(){
   const b=layout();
   const host=$('spread');host.innerHTML='';
   const total=b.pages.length;
-  if(spreadAt>=total)spreadAt=Math.max(0,total-2);
-  if(spreadAt<0)spreadAt=0;
+  while(spreadAt>=total)spreadAt-=2;
+  if(spreadAt<-1)spreadAt=-1;
   const scale=stagePreviewScale(b);
-  [spreadAt,spreadAt+1].forEach(i=>{
-    if(i>=total)return;
+  const pageW=Math.round(b.tw*110*scale)+'px';
+  const addPage=i=>{
     const d=document.createElement('div');d.className='page';
-    d.style.width=Math.round(b.tw*110*scale)+'px';
+    d.style.width=pageW;
     const cv=document.createElement('canvas');
     drawPage(cv,b.pages[i],i,b);
     d.appendChild(cv);host.appendChild(d);
-  });
-  $('count').textContent=`pages ${spreadAt+1}–${Math.min(spreadAt+2,total)} of ${total}`;
+  };
+  const addSpacer=()=>{
+    const d=document.createElement('div');d.className='page';
+    d.style.width=pageW;d.style.visibility='hidden';
+    host.appendChild(d);
+  };
+  if(spreadAt===-1){
+    addSpacer();
+    if(total>0)addPage(0);
+  }else{
+    addPage(spreadAt);
+    if(spreadAt+1<total)addPage(spreadAt+1);else addSpacer();
+  }
+  $('count').textContent=spreadAt===-1
+    ?`page 1 of ${total}`
+    :`pages ${spreadAt+1}–${Math.min(spreadAt+2,total)} of ${total}`;
   $('plabel').textContent=`${b.tw}″ × ${b.th}″ · gutter ${b.gutter}″ · outside ${OUTER}″`;
   renderChecks(b);
   renderFoundList(inputMode==='one'?manualPoems:b.poems);
@@ -1779,7 +1800,11 @@ function setBookTag(i,val){
   manualPoems[i].bookTag=val||undefined;
   renderPreview();
 }
-function turn(d){spreadAt=Math.max(0,spreadAt+d);renderPreview();}
+function turn(d){spreadAt=Math.max(-1,spreadAt+d);renderPreview();}
+// A page index (0-indexed) always falls in the LEFT slot when it's odd
+// (printed page is even) or is 0 (the solo opening page, sentinel -1);
+// otherwise it's the RIGHT half of the spread that starts one page earlier.
+function spreadStartFor(idx){return idx===0?-1:(idx%2===1?idx:idx-1);}
 function turnToSection(dir){
   const b=lastCheckBuild;
   if(!b)return;
@@ -1789,7 +1814,7 @@ function turnToSection(dir){
   if(dir>0)target=secIdxs.find(i=>i>spreadAt+1);
   else target=[...secIdxs].reverse().find(i=>i<spreadAt);
   if(target===undefined)target=dir>0?secIdxs[0]:secIdxs[secIdxs.length-1];
-  spreadAt=target%2===0?target:target-1;
+  spreadAt=spreadStartFor(target);
   renderPreview();
 }
 // ── Jump to a random poem's page, for spot-checking formatting across
@@ -1800,7 +1825,7 @@ function randomPage(){
   const poemIdxs=b.pages.map((p,i)=>p.kind==='poem'&&p.showTitle?i:-1).filter(i=>i>=0);
   if(!poemIdxs.length)return;
   const target=poemIdxs[Math.floor(Math.random()*poemIdxs.length)];
-  spreadAt=target%2===0?target:target-1;
+  spreadAt=spreadStartFor(target);
   renderPreview();
   const spread=$('spread');
   if(spread)spread.scrollIntoView({behavior:'smooth',block:'center'});
@@ -2435,7 +2460,7 @@ Out at the end of the boards
 the water keeps its own counsel,
 answering nothing,
 taking everything in.`;
-  spreadAt=0;renderPreview();
+  spreadAt=-1;renderPreview();
 }
 
 function fillTrims(){
@@ -2929,7 +2954,7 @@ function jumpToPoem(i){
       `<div>Can't find that page in the preview — it may be filtered out by a book tag.</div></div>`;
     return;
   }
-  spreadAt=idx%2===0?idx:idx-1;
+  spreadAt=spreadStartFor(idx);
   renderPreview();
   const spread=$('spread');
   if(spread)spread.scrollIntoView({behavior:'smooth',block:'center'});
