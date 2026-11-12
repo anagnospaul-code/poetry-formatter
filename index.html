@@ -2773,7 +2773,13 @@ function prefillFromRelease(i){
   $('mTitle').value=r.title;
   $('mAuthor').value=r.author||r.username; // no full name on file: use the Neopoet username for both
   onAuthorFieldChange();
-  if(r.username&&!$('mUsername').value.trim())$('mUsername').value=r.username;
+  // This release form's own username (if it has one) is always the
+  // authoritative value for this poem — it overwrites whatever
+  // onAuthorFieldChange() just guessed from a remembered author/username
+  // pairing, which can occasionally be wrong (e.g. an old backlog entry
+  // where no separate username was on file and the author's name got
+  // saved as the "remembered" username too).
+  if(r.username)$('mUsername').value=r.username;
   const cleanLoc=usLocationClean(r.location);
   if(cleanLoc&&!$('mLocation').value.trim())$('mLocation').value=cleanLoc;
   rememberAuthorLocation(r.author,cleanLoc);
