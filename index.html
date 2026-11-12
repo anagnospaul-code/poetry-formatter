@@ -2756,6 +2756,7 @@ function renderReleaseForms(){
     const stale=!used&&date&&date<sixMonthsAgo;
     const liStyle=stale?'background:color-mix(in srgb, var(--warn) 16%, transparent)':'';
     return `<li style="${liStyle}"><span class="ftext">${escapeHtml(r.title)}${done}${stale?' ⏳':''} <span class="fauthor">— ${escapeHtml(r.author)}, agreed ${escapeHtml(r.date_agreed)}</span></span>`+
+      `<button class="frm" title="See everything on file for this release — doesn't touch the form above" onclick="viewReleaseForm(${origIdx})">👁 View</button>`+
       `<button class="frm" title="Prefill the poem fields" onclick="prefillFromRelease(${origIdx})">Prefill</button></li>`;
   }).join('')||`<li><span class="ftext" style="color:var(--muted)">No matches.</span></li>`;
 }
@@ -2826,15 +2827,41 @@ function prefillFromRelease(i){
   // poem — especially when two poems have a similar title or author.
   const confirmEl=$('rfPrefillConfirm');
   if(confirmEl){
-    const bits=[];
-    if(r.date_agreed)bits.push(`agreed ${r.date_agreed}`);
-    if(r.submitted_on)bits.push(`submitted ${r.submitted_on}`);
     confirmEl.innerHTML=`<div class="status good"><span class="dot"></span><div>`+
-      `<b>Prefilled “${escapeHtml(r.title)}”</b> — ${escapeHtml(bylineText(r.author,r.username,r.location))}`+
-      `${bits.length?`<br>${escapeHtml(bits.join(', '))}`:''}`+
+      `<b>Prefilled “${escapeHtml(r.title)}”</b> — this release form's own details:`+
+      `<div style="margin-top:4px">${releaseFormFieldsHTML(r)}</div>`+
       `</div></div>`;
   }
   $('mBody').focus();
+}
+// Every field this app actually keeps on file for a release form, labeled
+// plainly — the raw, as-submitted values, not the cleaned-up versions that
+// get dropped into the poem fields (e.g. the full "City, ST, Country" on
+// file rather than just the state used for the printed byline). Shared by
+// the "View" button (read-only, changes nothing) and the Prefill
+// confirmation above.
+function releaseFormFieldsHTML(r){
+  const rows=[
+    ['Title',r.title],
+    ['Author’s name',r.author],
+    ['Neopoet username',r.username],
+    ['Location',r.location],
+    ['Date agreed',r.date_agreed],
+    ['Submitted on',r.submitted_on],
+  ].filter(([,v])=>v);
+  return rows.map(([label,v])=>`<div><b>${label}:</b> ${escapeHtml(v)}</div>`).join('');
+}
+// ── "View" — see everything on file for a release form without actually
+// prefilling anything, for when you just want to check the data itself.
+function viewReleaseForm(i){
+  const r=RELEASE_FORMS[i];
+  if(!r)return;
+  const el=$('rfPrefillConfirm');
+  if(!el)return;
+  el.innerHTML=`<div class="status"><span class="dot"></span><div>`+
+    `<b>On file for “${escapeHtml(r.title)}”</b> — nothing below was changed`+
+    `<div style="margin-top:4px">${releaseFormFieldsHTML(r)}</div>`+
+    `</div></div>`;
 }
 
 // ── Auto-add newly-synced releases straight into the current book ──────
