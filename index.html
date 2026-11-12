@@ -407,6 +407,7 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
     <input type="checkbox" id="rfUnusedOnly" onchange="renderReleaseForms()" style="width:auto"> Show not-yet-used only (oldest first)
   </label>
   <ul class="foundlist" id="rfList" style="overflow-y:auto"></ul>
+  <div id="rfPrefillConfirm" style="margin-top:8px"></div>
   <div class="hint">"Prefill" fills in the Title, Author and Location fields above from the release so you only need to paste the poem's text and click "Add this poem to the book." A ✓ means a poem with that title is already in this book. Forms signed more than 6 months ago with no matching poem yet are highlighted.</div>
 </div>
 </div>
@@ -2819,6 +2820,20 @@ function prefillFromRelease(i){
   if(cleanLoc&&!$('mLocation').value.trim())$('mLocation').value=cleanLoc;
   rememberAuthorLocation(r.author,cleanLoc);
   rememberAuthorUsername(r.author,r.username);
+  // Show exactly which release form this was, with its own on-file details
+  // (not just the cleaned-up values just dropped into the fields above),
+  // so it's easy to double-check the right one came up before adding the
+  // poem — especially when two poems have a similar title or author.
+  const confirmEl=$('rfPrefillConfirm');
+  if(confirmEl){
+    const bits=[];
+    if(r.date_agreed)bits.push(`agreed ${r.date_agreed}`);
+    if(r.submitted_on)bits.push(`submitted ${r.submitted_on}`);
+    confirmEl.innerHTML=`<div class="status good"><span class="dot"></span><div>`+
+      `<b>Prefilled “${escapeHtml(r.title)}”</b> — ${escapeHtml(bylineText(r.author,r.username,r.location))}`+
+      `${bits.length?`<br>${escapeHtml(bits.join(', '))}`:''}`+
+      `</div></div>`;
+  }
   $('mBody').focus();
 }
 
