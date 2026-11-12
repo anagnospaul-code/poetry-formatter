@@ -1278,12 +1278,12 @@ function buildPages(entries,tw,th,fs,gutter,startRight,wantToc,ornament,dedicati
   const titleGapAuthor=fs*(1.9+1.3+.5)/72;
   const pages=[];
   pages.push({kind:'half'});
-  pages.push({kind:'blank'});
+  pages.push({kind:'blank',frontMatter:true});
   pages.push({kind:'title'});
   pages.push({kind:'copyright'});
   if(dedication&&dedication.trim()){
     pages.push({kind:'dedication',text:dedication});
-    pages.push({kind:'blank'});
+    pages.push({kind:'blank',frontMatter:true});
   }
   // A table of contents needs one row per top-level entry (poem or section);
   // that count is known up front, so the number of TOC pages it will take
@@ -1525,7 +1525,15 @@ function drawPage(cv,page,idx,b){
     c.fillText((b.title||'').slice(0,70),cv.width/2,I(TOPM*.52));
     c.textAlign='left';c.fillStyle='#111';
   }
-  if(b.nums&&!['half','title','copyright','dedication','blank'].includes(page.kind)){
+  // Blank pages inserted purely to pad front matter (the half-title's
+  // verso, the dedication's verso) stay unnumbered, matching a real
+  // book — but a blank filler page inserted later, mid-book, to push the
+  // next poem onto a right-hand page still gets its number printed, so
+  // the visible page count never looks like it skipped one (11, blank
+  // page still showing "12", 13 — not 11 straight to 13).
+  const skipNums=['half','title','copyright','dedication'].includes(page.kind)||
+                 (page.kind==='blank'&&page.frontMatter);
+  if(b.nums&&!skipNums){
     c.strokeStyle='#999';c.lineWidth=I(.01);
     c.beginPath();c.moveTo(cv.width/2-I(.18),cv.height-I(BOTM*.5)-I(.12));
     c.lineTo(cv.width/2+I(.18),cv.height-I(BOTM*.5)-I(.12));c.stroke();
@@ -2081,7 +2089,9 @@ async function buildPDF(){
       doc.text(b.title||'',b.tw/2,TOPM*.52,{align:'center',maxWidth:colW});
       doc.setTextColor(17,17,17);
     }
-    if(b.nums&&!['half','title','copyright','dedication','blank'].includes(page.kind)){
+    const skipNumsPdf=['half','title','copyright','dedication'].includes(page.kind)||
+                       (page.kind==='blank'&&page.frontMatter);
+    if(b.nums&&!skipNumsPdf){
       doc.setDrawColor(150);doc.setLineWidth(.01);
       doc.line(b.tw/2-.18,b.th-BOTM*.5-.1,b.tw/2+.18,b.th-BOTM*.5-.1);
       doc.setDrawColor(0);
