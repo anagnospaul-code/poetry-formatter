@@ -298,7 +298,7 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
         <input type="checkbox" id="optToc" checked style="width:auto"> Include a contents page
       </label>
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:6px">
-        <input type="checkbox" id="optRight" checked style="width:auto"> Start every poem on a right-hand page
+        <input type="checkbox" id="optRight" style="width:auto"> Start every poem on a right-hand page
       </label>
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:6px">
         <input type="checkbox" id="optNums" checked style="width:auto"> Page numbers
@@ -3015,6 +3015,18 @@ function loadState(){
         if(el.type==='checkbox')el.checked=!!state.fields[id];
         else el.value=state.fields[id];
       });
+    }
+    // One-time migration: "Start every poem on a right-hand page" used to
+    // default to on, which meant a blank page got inserted before every
+    // single poem. Anyone with that old default already saved gets it
+    // switched off once, automatically — after this they're free to turn
+    // it back on and it'll stick, same as any other setting.
+    const RIGHT_MIGRATION_KEY='optRightMigratedV1';
+    if(!localStorage.getItem(RIGHT_MIGRATION_KEY)){
+      const el=$('optRight');
+      if(el)el.checked=false;
+      try{localStorage.setItem(RIGHT_MIGRATION_KEY,'1');}catch(e){}
+      if(typeof saveState==='function')saveState();
     }
   }catch(e){ console.warn('could not restore saved work:',e); }
 }
