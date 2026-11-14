@@ -2875,7 +2875,7 @@ function renderReleaseForms(){
       bannerEl.textContent=`${unusedCount} signed poem${unusedCount===1?'':'s'} ${unusedCount===1?"isn't":"aren't"} in this book yet.`;
     }else{bannerEl.style.display='none';bannerEl.textContent='';}
   }
-  let rows=withMeta.filter(x=>!q||x.r.title.toLowerCase().includes(q)||x.r.author.toLowerCase().includes(q));
+  let rows=withMeta.filter(x=>!q||x.r.title.toLowerCase().includes(q)||x.r.author.toLowerCase().includes(q)||(x.r.username||'').toLowerCase().includes(q));
   if(unusedOnly){
     rows=rows.filter(x=>x.r.title&&!x.used);
     rows.sort((a,b)=>{
