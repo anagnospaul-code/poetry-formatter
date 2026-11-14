@@ -170,6 +170,7 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
             <input type="text" id="mSection" placeholder="Section heading" style="flex:2;min-width:160px">
             <button class="ghost" onclick="addManualSection()">Add section heading</button>
           </div>
+          <div class="hint" style="margin-top:4px">Don't know yet which section a poem belongs in (a "gem," a contest winner...)? Just add it anywhere — every poem in the list below gets a section dropdown once you have more than one section, so you can re-file it the moment you decide, without re-typing anything.</div>
         </div>
       </div>
 
@@ -558,6 +559,34 @@ function moveManualPoem(i,dir){
   if(j<0||j>=manualPoems.length)return;
   snapshotManualPoems(`Before reordering “${manualPoems[i]?manualPoems[i].title:'entry'}”`);
   [manualPoems[i],manualPoems[j]]=[manualPoems[j],manualPoems[i]];
+  renderPreview();
+}
+// Re-file a poem under a different section heading (or out in front of all
+// sections, for "no section yet") without disturbing anything else's order.
+// The poem is dropped at the END of its new section — right before that
+// section's next divider, or at the very end of the book if it's the last
+// section — so poems already placed within that section stay put.
+function setPoemSection(i,sectionTitle){
+  const e=manualPoems[i];
+  if(!e||e.kind!=='poem')return;
+  snapshotManualPoems(`Before moving “${e.title}” to ${sectionTitle?'“'+sectionTitle+'”':'no section'}`);
+  manualPoems.splice(i,1);
+  let insertAt;
+  if(!sectionTitle){
+    insertAt=manualPoems.findIndex(x=>x.kind==='section');
+    if(insertAt===-1)insertAt=manualPoems.length;
+  }else{
+    const secIdx=manualPoems.findIndex(x=>x.kind==='section'&&x.title===sectionTitle);
+    if(secIdx===-1){
+      insertAt=manualPoems.length;
+    }else{
+      let j=secIdx+1;
+      while(j<manualPoems.length&&manualPoems[j].kind!=='section')j++;
+      insertAt=j;
+    }
+  }
+  manualPoems.splice(insertAt,0,e);
+  logActivity(`Moved “${e.title}” to ${sectionTitle?'section “'+sectionTitle+'”':'no section (before all sections)'}`);
   renderPreview();
 }
 
@@ -1721,6 +1750,15 @@ function renderFoundList(entries){
   const recentSet=onlyRecent?new Set(
     entries.filter(e=>e.addedAt).slice().sort((a,b)=>b.addedAt.localeCompare(a.addedAt)).slice(0,10)
   ):null;
+  // For the "move to section" dropdown: the section titles that exist so
+  // far, in book order, and which one each poem currently sits under (so
+  // the dropdown shows where it really is right now, not a guess).
+  const sectionTitles=inputMode==='one'?entries.filter(e=>e.kind==='section').map(e=>e.title):[];
+  let _curSection='';
+  const sectionOfEntry=entries.map(e=>{
+    if(e.kind==='section'){_curSection=e.title;return null;}
+    return _curSection;
+  });
   let n=0;
   list.innerHTML=entries.map((e,i)=>{
     let mv='';
@@ -1740,6 +1778,14 @@ function renderFoundList(entries){
         `<option value=""${!tag?' selected':''}>No tag</option>`+
         `<option value="book1"${tag==='book1'?' selected':''}>Book 1</option>`+
         `<option value="book2"${tag==='book2'?' selected':''}>Book 2</option>`+
+        `</select>`;
+    }
+    let sectionSel='';
+    if(inputMode==='one'&&e.kind==='poem'&&sectionTitles.length){
+      const cur=sectionOfEntry[i]||'';
+      sectionSel=`<select class="frm" style="font-size:.78rem" title="Move to a different section" onchange="setPoemSection(${i},this.value)">`+
+        `<option value=""${!cur?' selected':''}>No section</option>`+
+        sectionTitles.map(t=>`<option value="${escapeHtml(t)}"${cur===t?' selected':''}>${escapeHtml(t)}</option>`).join('')+
         `</select>`;
     }
     const opacityStyle=dimmed?'opacity:.45;':'';
@@ -1775,7 +1821,7 @@ function renderFoundList(entries){
     const jumpBtn=(inputMode==='one')?`<button class="frm" title="Jump to this poem's page in the preview" onclick="jumpToPoem(${i})">→ Go to page</button>`:'';
     return `<li style="${opacityStyle}"><span class="fnum">${n}.</span><span class="ftext">${escapeHtml(e.title)}`+
       ((e.author||e.username)?` <span class="fauthor">— ${escapeHtml(bylineText(e.author,e.username,e.location))}</span>`:'')+
-      `</span>${badges}${fillBtn}${msgBtn}${jumpBtn}${tagSel}${mv}${rm}</li>`;
+      `</span>${badges}${fillBtn}${msgBtn}${jumpBtn}${tagSel}${sectionSel}${mv}${rm}</li>`;
   }).join('');
   if(!list.innerHTML.trim())
     list.innerHTML=`<li style="opacity:.6">No entries match${searchValOuter?' "'+escapeHtml(searchValOuter)+'"':' the current filter'}.</li>`;
