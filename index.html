@@ -2859,6 +2859,33 @@ function releaseFormAgreedDate(r){
   const d=new Date(r.date_agreed);
   return isNaN(d.getTime())?null:d;
 }
+function levenshtein(a,b){
+  const m=a.length,n=b.length;
+  if(!m)return n;if(!n)return m;
+  let prev=new Array(n+1);for(let j=0;j<=n;j++)prev[j]=j;
+  for(let i=1;i<=m;i++){
+    const cur=[i];
+    for(let j=1;j<=n;j++){
+      cur[j]=a[i-1]===b[j-1]?prev[j-1]:1+Math.min(prev[j-1],prev[j],cur[j-1]);
+    }
+    prev=cur;
+  }
+  return prev[n];
+}
+function fuzzyFieldMatch(text,q){
+  // Exact substring match first (fast path, handles multi-word queries like a full name).
+  text=(text||'').toLowerCase();
+  if(!q)return true;
+  if(text.includes(q))return true;
+  // Otherwise tolerate a typo: compare the query against each word in the field.
+  const maxDist=q.length<=4?1:q.length<=9?2:3;
+  const words=text.split(/[^a-z0-9]+/).filter(Boolean);
+  for(const w of words){
+    if(Math.abs(w.length-q.length)>maxDist)continue;
+    if(levenshtein(w,q)<=maxDist)return true;
+  }
+  return false;
+}
 function renderReleaseForms(){
   const list=$('rfList'), q=($('rfSearch')?$('rfSearch').value:'').trim().toLowerCase();
   const unusedOnly=$('rfUnusedOnly')&&$('rfUnusedOnly').checked;
@@ -2875,7 +2902,7 @@ function renderReleaseForms(){
       bannerEl.textContent=`${unusedCount} signed poem${unusedCount===1?'':'s'} ${unusedCount===1?"isn't":"aren't"} in this book yet.`;
     }else{bannerEl.style.display='none';bannerEl.textContent='';}
   }
-  let rows=withMeta.filter(x=>!q||x.r.title.toLowerCase().includes(q)||x.r.author.toLowerCase().includes(q)||(x.r.username||'').toLowerCase().includes(q));
+  let rows=withMeta.filter(x=>!q||fuzzyFieldMatch(x.r.title,q)||fuzzyFieldMatch(x.r.author,q)||fuzzyFieldMatch(x.r.username,q));
   if(unusedOnly){
     rows=rows.filter(x=>x.r.title&&!x.used);
     rows.sort((a,b)=>{
