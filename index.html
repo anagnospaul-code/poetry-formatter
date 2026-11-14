@@ -39,16 +39,24 @@ body{background:var(--bg);color:var(--fg);
 .appnav a{font:inherit;font-size:.86rem;letter-spacing:.02em;color:var(--muted);text-decoration:none;
   padding:8px 14px;border-radius:7px}
 .appnav a.active{background:var(--accent);color:#fff}
-.wrap{max-width:1180px;margin:0 auto;padding-block:26px;padding-left:16px;padding-right:16px}
+.wrap{max-width:1500px;margin:0 auto;padding-block:26px;padding-left:16px;padding-right:16px}
 h1{font-size:1.5rem;font-weight:400;letter-spacing:.01em;margin:0 0 3px}
 .sub{color:var(--muted);font-size:.92rem;margin-bottom:22px}
 .cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
 @media(max-width:860px){.cols{grid-template-columns:1fr}}
 /* The poem-entry fields and the release-forms browser sit left/right of
    each other (fields left, submissions right) so neither needs scrolling
-   to reach the other; stacks back to one column on narrow/phone widths. */
-.entryCols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,260px);gap:20px;align-items:start}
-@media(max-width:1100px){.entryCols{grid-template-columns:1fr}}
+   to reach the other — but only once there's genuinely enough room for
+   both to breathe. This card sits in the LEFT half of the outer .cols
+   grid, so its real available width has nothing to do with the browser
+   window's width (halving a wide window still isn't wide); a container
+   query measures #modeOne's actual rendered width instead of guessing
+   from the viewport, and stays one column (stacked) until it is. */
+#modeOne{container-type:inline-size}
+.entryCols{display:grid;grid-template-columns:1fr;gap:20px;align-items:start}
+@container (min-width:680px){
+  .entryCols{grid-template-columns:minmax(0,1fr) minmax(0,260px)}
+}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
 .card h2{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);
   margin:0 0 11px;font-weight:600}
@@ -171,7 +179,10 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
               <button onclick="addManualPoem()">Add this poem to the book →</button>
               <button class="ghost" onclick="loadSample()">Load an example instead</button>
             </div>
-            <div id="addConfirm" style="margin-top:8px"></div>
+            <div class="btns" style="margin-top:8px;align-items:flex-start">
+              <div id="addConfirm" style="flex:1 1 auto"></div>
+              <div id="justAddedThumb"></div>
+            </div>
           </div>
           <div>
             <label style="font-weight:600">Submitted release forms — browse and prefill right here, beside the fields</label>
@@ -545,12 +556,7 @@ function addManualPoem(){
   $('mTitle').focus();
   logActivity(`Added poem “${title}”${authorName?' — '+authorName:''}`);
   renderPreview();
-  // A one-click preview of the page you just added — jumps the live spread
-  // view to it without losing your place in this form, instead of having
-  // to scroll down to the list and hunt for its "→ Go to page" button.
-  if(confirmEl)confirmEl.innerHTML=`<div class="status good"><span class="dot"></span>`+
-    `<div>✓ Added “${escapeHtml(title)}”. `+
-    `<button class="ghost" onclick="jumpToPoem(${newIdx})">👀 Preview this page</button></div></div>`;
+  showJustAdded(newIdx,confirmEl,`✓ Added “${escapeHtml(title)}”.`);
 }
 function addManualSection(){
   const title=$('mSection').value.trim();
@@ -566,9 +572,55 @@ function addManualSection(){
   $('mSection').value='';
   logActivity(`Added section “${title}”`);
   renderPreview();
+  showJustAdded(newIdx,confirmEl,`✓ Added section “${escapeHtml(title)}”.`);
+}
+// Shared by addManualPoem/addManualSection: finds the freshly-added entry's
+// actual page in the book, draws a small thumbnail of it right in the form
+// (so you see it without scrolling at all), and silently advances the big
+// live preview on the right to that same page — no click needed, but
+// without yanking the window's scroll position away from this form the
+// way a forced scrollIntoView would on every single add.
+function showJustAdded(entryIdx,confirmEl,confirmText){
+  const entry=manualPoems[entryIdx];
+  const pageIdx=entry?findBookPageIndex(entry):-1;
+  renderJustAddedThumb(pageIdx);
+  if(pageIdx>=0){
+    spreadAt=spreadStartFor(pageIdx);
+    renderPreview();
+  }
   if(confirmEl)confirmEl.innerHTML=`<div class="status good"><span class="dot"></span>`+
-    `<div>✓ Added section “${escapeHtml(title)}”. `+
-    `<button class="ghost" onclick="jumpToPoem(${newIdx})">👀 Preview this divider page</button></div></div>`;
+    `<div>${confirmText}${pageIdx>=0?' The preview on the right is already showing it.':''} `+
+    `<button class="ghost" onclick="jumpToPoem(${entryIdx})">👀 Scroll to the big preview</button></div></div>`;
+}
+// Which page in the built book an entry (poem or section heading) ended up
+// on, by matching title against the built page list. Shared by the
+// thumbnail/auto-advance above and the manual "Go to page" / preview
+// buttons in the list below.
+function findBookPageIndex(e){
+  const b=lastCheckBuild;
+  if(!b||!e)return -1;
+  return e.kind==='section'
+    ?b.pages.findIndex(pg=>pg.kind==='sectiontitle'&&pg.title===e.title)
+    :b.pages.findIndex(pg=>pg.kind==='poem'&&pg.showTitle&&pg.title===e.title);
+}
+// A small, real rendering of one page — reuses the exact same drawPage()
+// the big preview uses, just shown at thumbnail size — right inside the
+// entry form, so you can see how a poem or section divider turned out
+// without your eyes (or the page) having to move at all.
+function renderJustAddedThumb(pageIdx){
+  const host=$('justAddedThumb');
+  if(!host)return;
+  const b=lastCheckBuild;
+  if(!b||pageIdx==null||pageIdx<0||pageIdx>=b.pages.length){host.innerHTML='';return;}
+  const wrap=document.createElement('div');
+  wrap.className='page';
+  wrap.style.width='110px';
+  wrap.title='The page you just added, actual formatting';
+  const cv=document.createElement('canvas');
+  drawPage(cv,b.pages[pageIdx],pageIdx,b);
+  wrap.appendChild(cv);
+  host.innerHTML='';
+  host.appendChild(wrap);
 }
 function removeManualPoem(i){
   const e=manualPoems[i];
@@ -3071,11 +3123,7 @@ function checkPrintReady(){
 function jumpToPoem(i){
   const e=authorMsgEntries[i];
   if(!e)return;
-  const b=lastCheckBuild;
-  if(!b)return;
-  const idx=e.kind==='section'
-    ?b.pages.findIndex(pg=>pg.kind==='sectiontitle'&&pg.title===e.title)
-    :b.pages.findIndex(pg=>pg.kind==='poem'&&pg.showTitle&&pg.title===e.title);
+  const idx=findBookPageIndex(e);
   if(idx<0){
     const msg=`<div class="status warn"><span class="dot"></span>`+
       `<div>Can't find that page in the preview — it may be filtered out by a book tag.</div></div>`;
