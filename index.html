@@ -44,6 +44,11 @@ h1{font-size:1.5rem;font-weight:400;letter-spacing:.01em;margin:0 0 3px}
 .sub{color:var(--muted);font-size:.92rem;margin-bottom:22px}
 .cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
 @media(max-width:860px){.cols{grid-template-columns:1fr}}
+/* The poem-entry fields and the release-forms browser sit left/right of
+   each other (fields left, submissions right) so neither needs scrolling
+   to reach the other; stacks back to one column on narrow/phone widths. */
+.entryCols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,260px);gap:20px;align-items:start}
+@media(max-width:1100px){.entryCols{grid-template-columns:1fr}}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
 .card h2{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);
   margin:0 0 11px;font-weight:600}
@@ -151,30 +156,35 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
       </div>
 
       <div id="modeOne">
-        <div class="fld"><label>Title of this poem</label><input type="text" id="mTitle" placeholder="e.g. Resurrection"></div>
-        <div class="row">
-          <div class="fld"><label>Author (optional — leave blank if it's just yours)</label><input type="text" id="mAuthor" list="mAuthorList" placeholder="e.g. Mark Loiselle" oninput="onAuthorFieldChange()" onchange="onAuthorFieldChange()"><datalist id="mAuthorList"></datalist></div>
-          <div class="fld"><label>Neopoet username (optional)</label><input type="text" id="mUsername" list="mUsernameList" placeholder="e.g. mloiselle"><datalist id="mUsernameList"></datalist></div>
-        </div>
-        <div class="fld"><label>Location (optional — shown under the byline, e.g. for the "Corner brackets" ornament)</label><input type="text" id="mLocation" list="mLocationList" placeholder="e.g. Massachusetts, United States" autocomplete="off"><datalist id="mLocationList"></datalist></div>
-        <div class="fld"><label>Paste this one poem's text (copy it from the Neopoet page or the author's submission)</label>
-          <textarea id="mBody" spellcheck="false" style="min-height:140px"></textarea>
-        </div>
-        <div class="btns">
-          <button onclick="addManualPoem()">Add this poem to the book →</button>
-          <button class="ghost" onclick="loadSample()">Load an example instead</button>
-        </div>
-        <div class="fld" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
-          <label style="font-weight:600">Submitted release forms — browse and prefill right here, next to the fields above</label>
-          <div class="hint" id="rfCount"></div>
-          <div class="hint" id="rfBanner" style="display:none;color:var(--warn);font-weight:600"></div>
-          <div class="fld" style="margin-top:6px"><label>Search by title or author</label><input type="text" id="rfSearch" placeholder="e.g. a poem title or author" oninput="renderReleaseForms()"></div>
-          <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:6px">
-            <input type="checkbox" id="rfUnusedOnly" onchange="renderReleaseForms()" style="width:auto"> Show not-yet-used only (oldest first)
-          </label>
-          <ul class="foundlist" id="rfList" style="overflow-y:auto;margin-top:6px"></ul>
-          <div id="rfPrefillConfirm" style="margin-top:8px"></div>
-          <div class="hint">"Prefill" fills in the Title, Author and Location fields above from the release so you only need to paste the poem's text and click "Add this poem to the book." A ✓ means a poem with that title is already in this book. Forms signed more than 6 months ago with no matching poem yet are highlighted.</div>
+        <div class="entryCols">
+          <div>
+            <div class="fld"><label>Title of this poem</label><input type="text" id="mTitle" placeholder="e.g. Resurrection"></div>
+            <div class="row">
+              <div class="fld"><label>Author (optional — leave blank if it's just yours)</label><input type="text" id="mAuthor" list="mAuthorList" placeholder="e.g. Mark Loiselle" oninput="onAuthorFieldChange()" onchange="onAuthorFieldChange()"><datalist id="mAuthorList"></datalist></div>
+              <div class="fld"><label>Neopoet username (optional)</label><input type="text" id="mUsername" list="mUsernameList" placeholder="e.g. mloiselle"><datalist id="mUsernameList"></datalist></div>
+            </div>
+            <div class="fld"><label>Location (optional — shown under the byline, e.g. for the "Corner brackets" ornament)</label><input type="text" id="mLocation" list="mLocationList" placeholder="e.g. Massachusetts, United States" autocomplete="off"><datalist id="mLocationList"></datalist></div>
+            <div class="fld"><label>Paste this one poem's text (copy it from the Neopoet page or the author's submission)</label>
+              <textarea id="mBody" spellcheck="false" style="min-height:140px"></textarea>
+            </div>
+            <div class="btns">
+              <button onclick="addManualPoem()">Add this poem to the book →</button>
+              <button class="ghost" onclick="loadSample()">Load an example instead</button>
+            </div>
+            <div id="addConfirm" style="margin-top:8px"></div>
+          </div>
+          <div>
+            <label style="font-weight:600">Submitted release forms — browse and prefill right here, beside the fields</label>
+            <div class="hint" id="rfCount"></div>
+            <div class="hint" id="rfBanner" style="display:none;color:var(--warn);font-weight:600"></div>
+            <div class="fld" style="margin-top:6px"><label>Search by title or author</label><input type="text" id="rfSearch" placeholder="e.g. a poem title or author" oninput="renderReleaseForms()"></div>
+            <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:6px">
+              <input type="checkbox" id="rfUnusedOnly" onchange="renderReleaseForms()" style="width:auto"> Show not-yet-used only (oldest first)
+            </label>
+            <ul class="foundlist" id="rfList" style="overflow-y:auto;margin-top:6px"></ul>
+            <div id="rfPrefillConfirm" style="margin-top:8px"></div>
+            <div class="hint">"Prefill" fills in the Title, Author and Location fields on the left from the release so you only need to paste the poem's text and click "Add this poem to the book." A ✓ means a poem with that title is already in this book. Forms signed more than 6 months ago with no matching poem yet are highlighted.</div>
+          </div>
         </div>
         <div class="fld" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
           <label>Starting a new section (e.g. "Winners from Contest Entries 2024")? Name it here — it'll get its own divider page wherever you add it.</label>
@@ -512,8 +522,9 @@ function setMode(m){
 function addManualPoem(){
   const title=$('mTitle').value.trim();
   const body=$('mBody').value;
+  const confirmEl=$('addConfirm');
   if(!title||!body.trim()){
-    $('statusBox').innerHTML=`<div class="status warn"><span class="dot"></span>`+
+    if(confirmEl)confirmEl.innerHTML=`<div class="status warn"><span class="dot"></span>`+
       `<div>Give it a title and paste the poem's text before adding it.</div></div>`;
     return;
   }
@@ -525,6 +536,7 @@ function addManualPoem(){
   snapshotManualPoems(`Before adding “${title}”`);
   manualPoems.push({kind:'poem',title,author:authorName,username:authorUser,
     location:$('mLocation').value.trim(),lines,addedAt:new Date().toISOString()});
+  const newIdx=manualPoems.length-1;
   rememberAuthor(authorName,authorUser);
   rememberLocation($('mLocation').value);
   rememberAuthorLocation(authorName,$('mLocation').value);
@@ -533,19 +545,30 @@ function addManualPoem(){
   $('mTitle').focus();
   logActivity(`Added poem “${title}”${authorName?' — '+authorName:''}`);
   renderPreview();
+  // A one-click preview of the page you just added — jumps the live spread
+  // view to it without losing your place in this form, instead of having
+  // to scroll down to the list and hunt for its "→ Go to page" button.
+  if(confirmEl)confirmEl.innerHTML=`<div class="status good"><span class="dot"></span>`+
+    `<div>✓ Added “${escapeHtml(title)}”. `+
+    `<button class="ghost" onclick="jumpToPoem(${newIdx})">👀 Preview this page</button></div></div>`;
 }
 function addManualSection(){
   const title=$('mSection').value.trim();
+  const confirmEl=$('addConfirm');
   if(!title){
-    $('statusBox').innerHTML=`<div class="status warn"><span class="dot"></span>`+
+    if(confirmEl)confirmEl.innerHTML=`<div class="status warn"><span class="dot"></span>`+
       `<div>Give the section a name first.</div></div>`;
     return;
   }
   snapshotManualPoems(`Before adding section “${title}”`);
   manualPoems.push({kind:'section',title,addedAt:new Date().toISOString()});
+  const newIdx=manualPoems.length-1;
   $('mSection').value='';
   logActivity(`Added section “${title}”`);
   renderPreview();
+  if(confirmEl)confirmEl.innerHTML=`<div class="status good"><span class="dot"></span>`+
+    `<div>✓ Added section “${escapeHtml(title)}”. `+
+    `<button class="ghost" onclick="jumpToPoem(${newIdx})">👀 Preview this divider page</button></div></div>`;
 }
 function removeManualPoem(i){
   const e=manualPoems[i];
@@ -3047,13 +3070,17 @@ function checkPrintReady(){
 // scroll/flip through the whole book to find it after searching.
 function jumpToPoem(i){
   const e=authorMsgEntries[i];
-  if(!e||e.kind!=='poem')return;
+  if(!e)return;
   const b=lastCheckBuild;
   if(!b)return;
-  const idx=b.pages.findIndex(pg=>pg.kind==='poem'&&pg.showTitle&&pg.title===e.title);
+  const idx=e.kind==='section'
+    ?b.pages.findIndex(pg=>pg.kind==='sectiontitle'&&pg.title===e.title)
+    :b.pages.findIndex(pg=>pg.kind==='poem'&&pg.showTitle&&pg.title===e.title);
   if(idx<0){
-    $('statusBox').innerHTML=`<div class="status warn"><span class="dot"></span>`+
+    const msg=`<div class="status warn"><span class="dot"></span>`+
       `<div>Can't find that page in the preview — it may be filtered out by a book tag.</div></div>`;
+    const ac=$('addConfirm');
+    if(ac&&ac.innerHTML)ac.innerHTML=msg; else $('statusBox').innerHTML=msg;
     return;
   }
   spreadAt=spreadStartFor(idx);
