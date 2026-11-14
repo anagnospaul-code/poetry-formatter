@@ -100,8 +100,8 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
 .foundlist .frm{flex:0 0 auto;background:none;border:0;color:var(--muted);cursor:pointer;
   font-size:1rem;line-height:1;padding:2px 6px;border-radius:5px}
 .foundlist .frm:hover{background:var(--line);color:var(--bad)}
-/* Release Forms (section 6) gets extra breathing room: bigger text and
-   taller rows than the other found-lists, since it's read more than skimmed. */
+/* Release Forms gets extra breathing room: bigger text and taller rows
+   than the other found-lists, since it's read more than skimmed. */
 #rfList{font-size:1.05rem;max-height:480px}
 #rfList li{padding:12px 14px;gap:4px 10px}
 #rfList .fauthor{display:block;font-size:.9rem;margin-top:1px}
@@ -163,6 +163,18 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
         <div class="btns">
           <button onclick="addManualPoem()">Add this poem to the book →</button>
           <button class="ghost" onclick="loadSample()">Load an example instead</button>
+        </div>
+        <div class="fld" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+          <label style="font-weight:600">Submitted release forms — browse and prefill right here, next to the fields above</label>
+          <div class="hint" id="rfCount"></div>
+          <div class="hint" id="rfBanner" style="display:none;color:var(--warn);font-weight:600"></div>
+          <div class="fld" style="margin-top:6px"><label>Search by title or author</label><input type="text" id="rfSearch" placeholder="e.g. a poem title or author" oninput="renderReleaseForms()"></div>
+          <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:6px">
+            <input type="checkbox" id="rfUnusedOnly" onchange="renderReleaseForms()" style="width:auto"> Show not-yet-used only (oldest first)
+          </label>
+          <ul class="foundlist" id="rfList" style="overflow-y:auto;margin-top:6px"></ul>
+          <div id="rfPrefillConfirm" style="margin-top:8px"></div>
+          <div class="hint">"Prefill" fills in the Title, Author and Location fields above from the release so you only need to paste the poem's text and click "Add this poem to the book." A ✓ means a poem with that title is already in this book. Forms signed more than 6 months ago with no matching poem yet are highlighted.</div>
         </div>
         <div class="fld" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
           <label>Starting a new section (e.g. "Winners from Contest Entries 2024")? Name it here — it'll get its own divider page wherever you add it.</label>
@@ -399,18 +411,6 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
   <ul class="foundlist" id="blList" style="max-height:340px;overflow-y:auto"></ul>
 </div>
 
-<div class="card" style="margin-top:16px">
-  <h2>6 · Release forms</h2>
-  <div class="hint" id="rfCount"></div>
-  <div class="hint" id="rfBanner" style="display:none;color:var(--warn);font-weight:600"></div>
-  <div class="fld"><label>Search by title or author</label><input type="text" id="rfSearch" placeholder="e.g. a poem title or author" oninput="renderReleaseForms()"></div>
-  <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:6px">
-    <input type="checkbox" id="rfUnusedOnly" onchange="renderReleaseForms()" style="width:auto"> Show not-yet-used only (oldest first)
-  </label>
-  <ul class="foundlist" id="rfList" style="overflow-y:auto"></ul>
-  <div id="rfPrefillConfirm" style="margin-top:8px"></div>
-  <div class="hint">"Prefill" fills in the Title, Author and Location fields above from the release so you only need to paste the poem's text and click "Add this poem to the book." A ✓ means a poem with that title is already in this book. Forms signed more than 6 months ago with no matching poem yet are highlighted.</div>
-</div>
 </div>
 
 <script>
