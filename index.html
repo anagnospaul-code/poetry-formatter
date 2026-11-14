@@ -561,6 +561,18 @@ function moveManualPoem(i,dir){
   [manualPoems[i],manualPoems[j]]=[manualPoems[j],manualPoems[i]];
   renderPreview();
 }
+// One-click jump to the very front of the whole list — mainly for adding a
+// section heading after the fact and wanting it ahead of poems you already
+// typed in, without clicking the ↑ arrow once per poem.
+function moveEntryToTop(i){
+  if(i<=0||i>=manualPoems.length)return;
+  const e=manualPoems[i];
+  snapshotManualPoems(`Before moving “${e.title}” to the top`);
+  manualPoems.splice(i,1);
+  manualPoems.unshift(e);
+  logActivity(`Moved ${e.kind==='section'?'section':'poem'} “${e.title}” to the very top`);
+  renderPreview();
+}
 // Re-file a poem under a different section heading (or out in front of all
 // sections, for "no section yet") without disturbing anything else's order.
 // The poem is dropped at the END of its new section — right before that
@@ -1763,9 +1775,11 @@ function renderFoundList(entries){
   list.innerHTML=entries.map((e,i)=>{
     let mv='';
     if(inputMode==='one'){
+      const top=i>0?`onclick="moveEntryToTop(${i})"`:'disabled';
       const up=i>0?`onclick="moveManualPoem(${i},-1)"`:'disabled';
       const dn=i<entries.length-1?`onclick="moveManualPoem(${i},1)"`:'disabled';
-      mv=`<button class="frm" title="Move up" ${up}>↑</button>`+
+      mv=`<button class="frm" title="Move to the very top of the list" ${top}>⤒</button>`+
+         `<button class="frm" title="Move up" ${up}>↑</button>`+
          `<button class="frm" title="Move down" ${dn}>↓</button>`;
     }
     const rm=inputMode==='one'?`<button class="frm" title="Remove" onclick="removeManualPoem(${i})">✕</button>`:'';
