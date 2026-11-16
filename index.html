@@ -1905,7 +1905,7 @@ function renderFoundList(entries){
     }
     const hasIssue=!!dupHit||missing.length>0||needsText;
     if(onlyIssues&&!hasIssue)return '';
-    const fillBtn=(inputMode==='one'&&needsText)?`<button class="frm" title="Fill in the poem text" onclick="editManualPoem(${i})">✎ Fill in text</button>`:'';
+    const fillBtn=(inputMode==='one')?`<button class="frm" title="${needsText?'Fill in the poem text':'Edit this poem’s details and text'}" onclick="editManualPoem(${i})">${needsText?'✎ Fill in text':'✎ Edit'}</button>`:'';
     const msgBtn=(inputMode==='one'&&(missing.length||needsText))?`<button class="frm" title="Draft a message to this author" onclick="showAuthorMessage(${i})">✉ Message author</button>`:'';
     const jumpBtn=(inputMode==='one')?`<button class="frm" title="Jump to this poem's page in the preview" onclick="jumpToPoem(${i})">→ Go to page</button>`:'';
     return `<li style="${opacityStyle}"><span class="fnum">${n}.</span><span class="ftext">${escapeHtml(e.title)}`+
