@@ -189,6 +189,9 @@ code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.
             <div class="hint" id="rfCount"></div>
             <div class="hint" id="rfBanner" style="display:none;color:var(--warn);font-weight:600"></div>
             <div class="fld" style="margin-top:6px"><label>Search by title or author</label><input type="text" id="rfSearch" placeholder="e.g. a poem title or author" oninput="renderReleaseForms()"></div>
+            <div class="fld" style="margin-top:6px"><label>Filter by year agreed</label>
+              <select id="rfYear" onchange="renderReleaseForms()"><option value="">All years</option></select>
+            </div>
             <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin-top:6px">
               <input type="checkbox" id="rfUnusedOnly" onchange="renderReleaseForms()" style="width:auto"> Show not-yet-used only (oldest first)
             </label>
@@ -2886,9 +2889,26 @@ function fuzzyFieldMatch(text,q){
   }
   return false;
 }
+// Populated once at startup (and left alone after that — the release-form
+// list itself only changes via a fresh deploy, which reloads the page).
+function buildReleaseFormYearOptions(){
+  const sel=$('rfYear');
+  if(!sel)return;
+  const years=new Set();
+  RELEASE_FORMS.forEach(r=>{
+    const y=(r.date_agreed||'').slice(0,4);
+    if(/^\d{4}$/.test(y))years.add(y);
+  });
+  const sorted=[...years].sort((a,b)=>b.localeCompare(a));
+  const cur=sel.value;
+  sel.innerHTML='<option value="">All years</option>'+
+    sorted.map(y=>`<option value="${y}">${y}</option>`).join('');
+  if(sorted.includes(cur))sel.value=cur;
+}
 function renderReleaseForms(){
   const list=$('rfList'), q=($('rfSearch')?$('rfSearch').value:'').trim().toLowerCase();
   const unusedOnly=$('rfUnusedOnly')&&$('rfUnusedOnly').checked;
+  const yearFilter=$('rfYear')?$('rfYear').value:'';
   const inBookTitles=new Set(manualPoems.filter(p=>p.kind==='poem').map(p=>p.title.toLowerCase()));
   const sixMonthsAgo=new Date();sixMonthsAgo.setMonth(sixMonthsAgo.getMonth()-6);
   const withMeta=RELEASE_FORMS.map((r,origIdx)=>({r,origIdx,
@@ -2902,7 +2922,8 @@ function renderReleaseForms(){
       bannerEl.textContent=`${unusedCount} signed poem${unusedCount===1?'':'s'} ${unusedCount===1?"isn't":"aren't"} in this book yet.`;
     }else{bannerEl.style.display='none';bannerEl.textContent='';}
   }
-  let rows=withMeta.filter(x=>!q||fuzzyFieldMatch(x.r.title,q)||fuzzyFieldMatch(x.r.author,q)||fuzzyFieldMatch(x.r.username,q));
+  let rows=withMeta.filter(x=>(!q||fuzzyFieldMatch(x.r.title,q)||fuzzyFieldMatch(x.r.author,q)||fuzzyFieldMatch(x.r.username,q))&&
+    (!yearFilter||(x.r.date_agreed||'').slice(0,4)===yearFilter));
   if(unusedOnly){
     rows=rows.filter(x=>x.r.title&&!x.used);
     rows.sort((a,b)=>{
@@ -2911,7 +2932,7 @@ function renderReleaseForms(){
     });
   }
   $('rfCount').textContent=`${RELEASE_FORMS.length} release forms on file`+
-    (q?` — ${rows.length} match "${q}"`:unusedOnly?` — ${rows.length} not yet used, oldest first`:' — search to browse, or prefill one into the form above.');
+    (q?` — ${rows.length} match "${q}"`:unusedOnly?` — ${rows.length} not yet used, oldest first`:yearFilter?` — ${rows.length} agreed in ${yearFilter}`:' — search to browse, or prefill one into the form above.');
   list.innerHTML=rows.slice(0,200).map(({r,origIdx,used,date})=>{
     if(!r.title)return '';
     const done=used?' ✓':'';
@@ -3208,6 +3229,7 @@ function editManualPoem(i){
   renderPreview();
   $('mBody').focus();
 }
+buildReleaseFormYearOptions();
 renderReleaseForms();
 
 buildAuthorLists();
