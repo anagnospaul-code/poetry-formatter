@@ -1274,12 +1274,27 @@ const CORNER_CAPS={
   wave:[[-5/72,6/72],[5/72,5/72],[-5/72,6/72]],
   pennant:[[-18/72,9/72]],
 };
-function drawRuleCapsCanvas(c,left,colW,yBase,I,capDeltas){
+function drawRuleCapsCanvas(c,left,colW,yBase,I,capDeltas,minHalfSpan){
   // left/colW/yBase arrive already pixel-scaled (the canvas caller's own
   // coordinate space) — only the ornament's own inch constants need I().
+  // minHalfSpan (also pixel-scaled), when given, is the smallest
+  // center-to-title-edge distance the caller needs — e.g. half the
+  // title's own rendered width plus a small gap. The cap motif itself
+  // isn't a point: it reaches inward from its anchor (xL/xR) by its own
+  // width before the straight rule begins, so that reach has to be added
+  // on top of minHalfSpan too — otherwise the anchor can clear the title
+  // while the cap's decorative loop still lands right on top of it
+  // (exactly what was happening before this accounted for it). The fixed
+  // 12%-inset span is still used whenever it's already wide enough, so
+  // short titles keep their usual look untouched.
+  let totalDx=0,totalDy=0;
+  capDeltas.forEach(([dx,dy])=>{totalDx+=dx;totalDy+=dy;});
+  const capWidth=I(-totalDx);
   const inset=colW*ORN_RULE_INSET_FRAC;
-  const xL=left+inset,xR=left+colW-inset;
-  let totalDy=0;capDeltas.forEach(([,dy])=>totalDy+=dy);
+  const fixedHalf=colW/2-inset;
+  const half=minHalfSpan?Math.min(colW/2,Math.max(fixedHalf,minHalfSpan+capWidth)):fixedHalf;
+  const center=left+colW/2;
+  const xL=center-half,xR=center+half;
   const yRule=yBase+I(ORN_RULE_DROP),yTop=yRule-I(totalDy);
   function capPts(mirror,sx,sy){
     let x=sx,y=sy;const pts=[];
@@ -1297,13 +1312,21 @@ function drawRuleCapsCanvas(c,left,colW,yBase,I,capDeltas){
   c.stroke();
   c.restore();
 }
-function drawRuleCapsPDF(doc,left,colW,yBase,capDeltas){
-  const inset=colW*ORN_RULE_INSET_FRAC;
-  const xL=left+inset,xR=left+colW-inset;
+function drawRuleCapsPDF(doc,left,colW,yBase,capDeltas,minHalfSpan){
+  // minHalfSpan (in the same inch units as left/colW), when given, is the
+  // smallest center-to-title-edge distance needed to clear a long title —
+  // see the matching (fuller) comment on drawRuleCapsCanvas for why the
+  // cap's own width (capWidth) has to be added on top of it.
   let totalDx=0,totalDy=0;
   capDeltas.forEach(([dx,dy])=>{totalDx+=dx;totalDy+=dy;});
-  const capWidth=-totalDx,yRule=yBase+ORN_RULE_DROP,yTop=yRule-totalDy;
-  const ruleLen=(xR-xL)-2*capWidth;
+  const capWidth=-totalDx;
+  const inset=colW*ORN_RULE_INSET_FRAC;
+  const fixedHalf=colW/2-inset;
+  const half=minHalfSpan?Math.min(colW/2,Math.max(fixedHalf,minHalfSpan+capWidth)):fixedHalf;
+  const center=left+colW/2;
+  const xL=center-half,xR=center+half;
+  const yRule=yBase+ORN_RULE_DROP,yTop=yRule-totalDy;
+  const ruleLen=Math.max(0,(xR-xL)-2*capWidth);
   const leftDeltas=capDeltas.map(([dx,dy])=>[-dx,dy]);
   const rightRevDeltas=[...capDeltas].reverse().map(([dx,dy])=>[-dx,-dy]);
   const segments=[...leftDeltas,[ruleLen,0],...rightRevDeltas];
@@ -1616,7 +1639,12 @@ function drawPage(cv,page,idx,b){
       // corner-cap shape on the same rule, so it fits the same gap.
       const orn=page.ornament==='sectionbox'?'brackets':page.ornament;
       if(orn&&orn!=='none'){
-        drawRuleCapsCanvas(c,left,colW,y,I,CORNER_CAPS[orn]||ORN_CAP_DELTAS);
+        // A long title can render wider than the ornament's usual fixed
+        // span, which would otherwise draw the corner brackets right over
+        // its outer letters. Widen the span to clear the title itself
+        // (plus a small gap) whenever that's bigger than the usual span.
+        const titleHalfW=c.measureText(upTitle).width/2;
+        drawRuleCapsCanvas(c,left,colW,y,I,CORNER_CAPS[orn]||ORN_CAP_DELTAS,titleHalfW+I(.12));
       }
       y+=I(b.fs*1.9/72);
       if(page.author||page.username){
@@ -2218,7 +2246,9 @@ async function buildPDF(){
         // choice is just a different corner-cap shape on the same rule.
         const orn=page.ornament==='sectionbox'?'brackets':page.ornament;
         if(orn&&orn!=='none'){
-          drawRuleCapsPDF(doc,left,colW,y,CORNER_CAPS[orn]||ORN_CAP_DELTAS);
+          // Same long-title fix as the canvas preview — see its comment.
+          const titleHalfWIn=doc.getTextWidth(upTitle)/2;
+          drawRuleCapsPDF(doc,left,colW,y,CORNER_CAPS[orn]||ORN_CAP_DELTAS,titleHalfWIn+.12);
         }
         y+=b.fs*1.9/72;
         if(page.author||page.username){
